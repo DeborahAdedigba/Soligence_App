@@ -102,10 +102,17 @@ def train_lstm(X_train, y_train):
     )
     return model
 
+# In your training.py, modify the save_model function to include version info
 def save_model(model, model_name, coin_index=1):
-    """Save trained model to file"""
+    """Save trained model to file with version info"""
     model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index}"
     os.makedirs(model_dir, exist_ok=True)
+    
+    # Save version information
+    with open(f"{model_dir}/requirements.txt", "w") as f:
+        f.write(f"scikit-learn=={sklearn.__version__}\n")
+        f.write(f"xgboost=={xgboost.__version__}\n")
+        f.write(f"tensorflow=={tf.__version__}\n")
     
     if model_name == 'LSTM':
         model_path = f"{model_dir}/lstm_model.keras"

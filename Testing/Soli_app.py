@@ -35,6 +35,28 @@ from training import train_all_models
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning)
+# At the beginning of your main app
+import pkg_resources
+
+def check_versions():
+    requirements = {
+        'scikit-learn': '1.2.2',
+        'xgboost': '1.7.5',
+        'tensorflow': '2.12.0',
+        'joblib': '1.2.0'
+    }
+    
+    for pkg, req_version in requirements.items():
+        try:
+            installed = pkg_resources.get_distribution(pkg).version
+            if installed != req_version:
+                st.warning(f"Version mismatch: {pkg} (installed: {installed}, required: {req_version})")
+        except Exception:
+            st.error(f"{pkg} not installed")
+
+# Call this at app startup
+check_versions()
+
 
 # Initialize session state
 if 'models_trained' not in st.session_state:
@@ -524,91 +546,201 @@ from training import train_all_models
 
 # Modify your model evaluation function to handle cases where models don't exist
 def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
-    """Evaluate models for a specific coin in the dataset"""
-    if data.empty:
-        st.error("No data available for evaluation.")
-        return
+    """
+    Evaluate machine learning models for a specific cryptocurrency with version compatibility checks
+    and automatic recovery if models fail to load.
     
-    coin_name = data.columns[coin_index]
-    model_dir = f"Model_SELECTED_COIN_{coin_index+1}"
-    
-    # Check if models exist, if not train them
-    if not os.path.exists(model_dir):
-        st.warning(f"No trained models found for {coin_name}. Training models now...")
-        train_all_models(data, coin_index)
-    
-    # Prepare data with lag features
-    data_prep = data.copy()
-    for lag in range(1, 4):
-        data_prep[f'{coin_name}_lag_{lag}'] = data_prep[coin_name].shift(lag)
-    data_prep.dropna(inplace=True)
-
-    features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
-    X = data_prep[features]
-    y = data_prep[coin_name]
-    
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    models = {
-        'GRADIENT BOOSTING': None,
-        'SVR': None,
-        'XGBOOST': None,
-        'LSTM': None
-    }
-    
-    # Load models with error handling
+    Parameters:
+    - data: DataFrame containing the cryptocurrency data
+    - coin_index: Index of the cryptocurrency column to evaluate
+    - chosen_model: Specific model to evaluate ('all' evaluates all models)
+    """
     try:
-        models['GRADIENT BOOSTING'] = joblib.load(f"{model_dir}/gradient_boosting_model.pkl")
-        models['SVR'] = joblib.load(f"{model_dir}/svr_model.pkl")
-        models['XGBOOST'] = joblib.load(f"{model_dir}/xgboost_model.pkl")
-        models['LSTM'] = tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
-    except Exception as e:
-        st.error(f"Error loading models: {str(e)}")
-        return
-    
-    # Rest of your evaluation logic...
-    if chosen_model.lower() == 'all':
-        chosen_models = models.keys()
-    else:
-        chosen_models = [chosen_model.upper()]
-    
-    eval_metrics = {}
-    for model_name in chosen_models:
-        if model_name not in models or models[model_name] is None:
-            st.warning(f"Model '{model_name}' not available.")
-            continue
+        # Validate input data
+        if data.empty:
+            st.error("No data available for evaluation.")
+            return
             
-        if model_name == 'LSTM':
-            X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
-            predictions = models[model_name].predict(X_test_array).flatten()
+        coin_name = data.columns[coin_index]
+        model_dir = f"Model_SELECTED_COIN_{coin_index+1}"
+        
+        # Display version requirements if they exist
+        req_file = f"{model_dir}/requirements.txt"
+        if os.path.exists(req_file):
+            with open(req_file) as f:
+                st.info(f"Model version requirements:\n```\n{f.read()}\n```")
+        
+        # Check if models exist, if not train them
+        if not os.path.exists(model_dir):
+            st.warning(f"No trained models found for {coin_name}. Training models now...")
+            with st.spinner(f"Training models for {coin_name}..."):
+                train_all_models(data, coin_index)
+            st.success("Models trained successfully!")
+        
+        # Prepare data with lag features
+        data_prep = data.copy()
+        for lag in range(1, 4):
+            data_prep[f'{coin_name}_lag_{lag}'] = data_prep[coin_name].shift(lag)
+        data_prep.dropna(inplace=True)
+        
+        features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
+        X = data_prep[features]
+        y = data_prep[coin_name]
+        
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        
+        # Model loading with error recovery
+        models = {}
+        retrained = False
+        
+        try:
+            # First attempt to load models
+            models = {
+                'GRADIENT BOOSTING': joblib.load(f"{model_dir}/gradient_boosting_model.pkl"),
+                'SVR': joblib.load(f"{model_dir}/svr_model.pkl"),
+                'XGBOOST': joblib.load(f"{model_dir}/xgboost_model.pkl"),
+                'LSTM': tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
+            }
+        except Exception as e:
+            st.warning(f"Model loading failed: {str(e)}")
+            st.warning("Attempting to retrain models with current environment...")
+            
+            with st.spinner("Retraining models..."):
+                train_all_models(data, coin_index)
+                retrained = True
+                
+                # Second attempt after retraining
+                try:
+                    models = {
+                        'GRADIENT BOOSTING': joblib.load(f"{model_dir}/gradient_boosting_model.pkl"),
+                        'SVR': joblib.load(f"{model_dir}/svr_model.pkl"),
+                        'XGBOOST': joblib.load(f"{model_dir}/xgboost_model.pkl"),
+                        'LSTM': tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
+                    }
+                    st.success("Models successfully retrained and loaded!")
+                except Exception as e:
+                    st.error(f"Failed to load even after retraining: {str(e)}")
+                    return
+
+        # Determine which models to evaluate
+        if chosen_model.lower() == 'all':
+            models_to_evaluate = models.keys()
         else:
-            predictions = models[model_name].predict(X_test)
+            chosen_model = chosen_model.upper()
+            if chosen_model in models:
+                models_to_evaluate = [chosen_model]
+            else:
+                st.error(f"Model '{chosen_model}' not found in trained models")
+                return
+
+        # Evaluation metrics storage
+        eval_metrics = {}
+        predictions_data = []
+
+        for model_name in models_to_evaluate:
+            if models[model_name] is None:
+                st.warning(f"Skipping {model_name} - model not available")
+                continue
+
+            try:
+                # Make predictions
+                if model_name == 'LSTM':
+                    X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
+                    predictions = models[model_name].predict(X_test_array).flatten()
+                else:
+                    predictions = models[model_name].predict(X_test)
+
+                # Calculate metrics
+                metrics = {
+                    'MAE': mean_absolute_error(y_test, predictions),
+                    'MSE': mean_squared_error(y_test, predictions),
+                    'RMSE': np.sqrt(mean_squared_error(y_test, predictions)),
+                    'MAPE': np.mean(np.abs((y_test - predictions) / y_test)) * 100,
+                    'R2': r2_score(y_test, predictions)
+                }
+                eval_metrics[model_name] = metrics
+
+                # Store prediction data for visualization
+                predictions_data.append({
+                    'Model': model_name,
+                    'Actual': y_test,
+                    'Predicted': predictions
+                })
+
+            except Exception as e:
+                st.error(f"Error evaluating {model_name}: {str(e)}")
+                continue
+
+        # Display results
+        if not eval_metrics:
+            st.error("No models were successfully evaluated")
+            return
+
+        st.subheader(f"Evaluation Results for {coin_name}")
         
-        # Calculate metrics
-        mae = mean_absolute_error(y_test, predictions)
-        mse = mean_squared_error(y_test, predictions)
-        rmse = np.sqrt(mse)
-        mape = np.mean(np.abs((y_test - predictions) / y_test)) * 100
-        r2 = r2_score(y_test, predictions)
-        
-        eval_metrics[model_name] = {
-            'MAE': mae,
-            'MSE': mse,
-            'RMSE': rmse,
-            'MAPE': mape,
-            'R2': r2
-        }
-    
-    # Display results
-    st.subheader(f"Evaluation Metrics for {coin_name}:")
-    for model_name, metrics in eval_metrics.items():
-        st.write(f"### {model_name}")
-        st.dataframe(pd.DataFrame.from_dict(metrics, orient='index', columns=['Value']))
-    
-    # Visual comparison
-    if eval_metrics:
+        # Metrics table
         metrics_df = pd.DataFrame.from_dict(eval_metrics, orient='index')
-        st.bar_chart(metrics_df[['MAE', 'RMSE']])
+        st.dataframe(metrics_df.style.format({
+            'MAE': '{:.4f}',
+            'MSE': '{:.4f}',
+            'RMSE': '{:.4f}',
+            'MAPE': '{:.2f}%',
+            'R2': '{:.4f}'
+        }))
+
+        # Metrics visualization
+        st.subheader("Model Comparison")
+        fig = go.Figure()
+        for metric in ['MAE', 'RMSE', 'R2']:
+            fig.add_trace(go.Bar(
+                x=metrics_df.index,
+                y=metrics_df[metric],
+                name=metric,
+                text=metrics_df[metric].round(4),
+                textposition='auto'
+            ))
+        fig.update_layout(
+            barmode='group',
+            title='Model Performance Comparison',
+            xaxis_title='Model',
+            yaxis_title='Metric Value'
+        )
+        st.plotly_chart(fig)
+
+        # Actual vs Predicted visualization
+        st.subheader("Actual vs Predicted Values")
+        fig2 = go.Figure()
+        for pred_data in predictions_data:
+            fig2.add_trace(go.Scatter(
+                x=y_test,
+                y=pred_data['Predicted'],
+                mode='markers',
+                name=pred_data['Model'],
+                marker=dict(size=8, opacity=0.6)
+            ))
+        # Add perfect prediction line
+        fig2.add_trace(go.Scatter(
+            x=[y_test.min(), y_test.max()],
+            y=[y_test.min(), y_test.max()],
+            mode='lines',
+            name='Perfect Prediction',
+            line=dict(color='black', dash='dash')
+        ))
+        fig2.update_layout(
+            title='Actual vs Predicted Values',
+            xaxis_title='Actual Price',
+            yaxis_title='Predicted Price',
+            showlegend=True
+        )
+        st.plotly_chart(fig2)
+
+        # Show retrained notice if applicable
+        if retrained:
+            st.info("Note: Models were retrained with current environment settings")
+
+    except Exception as e:
+        st.error(f"An unexpected error occurred: {str(e)}")
+        st.error("Please check your data and model files")
 
 def plot_actual_forecast_with_confidence(actual, predictions, periods, upper_bound, lower_bound):
     fig = go.Figure()
