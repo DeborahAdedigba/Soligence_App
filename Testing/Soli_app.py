@@ -1,4 +1,6 @@
 # importing necessary modules
+import os
+import warnings
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -8,7 +10,6 @@ from datetime import datetime, timedelta
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
-import os
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import GradientBoostingRegressor
@@ -31,14 +32,30 @@ import time
 import pickle
 import yfinance as yf
 from plotly.subplots import make_subplots
-from training import train_all_models
-import warnings
+from joblib import Memory
+import pkg_resources
+from keras.callbacks import EarlyStopping
 
 warnings.filterwarnings("ignore", category=UserWarning)
-# At the beginning of your main app
-import pkg_resources
 
+# Configuration for training
+os.makedirs("cached_models", exist_ok=True)
+os.makedirs("trained_models", exist_ok=True)
+memory = Memory("cached_models", verbose=0)
 
+# Initialize session state
+if 'models_trained' not in st.session_state:
+    st.session_state.models_trained = False
+if 'model_paths' not in st.session_state:
+    st.session_state.model_paths = {}
+if 'training_progress' not in st.session_state:
+    st.session_state.training_progress = {}
+if 'training_thread' not in st.session_state:
+    st.session_state.training_thread = None
+if 'training_started' not in st.session_state:
+    st.session_state.training_started = False
+
+# Version checking
 def check_versions():
     requirements = {
         'scikit-learn': '1.6.1',
@@ -55,15 +72,206 @@ def check_versions():
         except Exception:
             st.error(f"{pkg} not installed")
 
-# Call this at app startup
-check_versions()
+# Training functions
+def prepare_data(selected_data, coin_index=0):
+    """Prepare data with lag features"""
+    selected_data = selected_data.copy()
+    coin_name = selected_data.columns[coin_index]
+    
+    for lag in range(1, 4):
+        selected_data[f'{coin_name}_lag_{lag}'] = selected_data[coin_name].shift(lag)
+    
+    selected_data.dropna(inplace=True)
+    
+    features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
+    X = selected_data[features]
+    y = selected_data[coin_name]
+    
+    return train_test_split(X, y, test_size=0.2, random_state=42)
 
+@memory.cache
+def train_gradient_boosting(X_train, y_train):
+    """Train Gradient Boosting model with caching"""
+    params = {
+        'n_estimators': [50, 100],
+        'learning_rate': [0.01, 0.1],
+        'max_depth': [3, 5],
+        'min_samples_leaf': [1, 2],
+        'subsample': [0.8, 0.9]
+    }
+    gb = GradientBoostingRegressor(random_state=42)
+    model = GridSearchCV(gb, params, cv=5, scoring='neg_mean_squared_error', verbose=1)
+    model.fit(X_train, y_train)
+    return model.best_estimator_
 
-# Initialize session state
-if 'models_trained' not in st.session_state:
+@memory.cache
+def train_svr(X_train, y_train):
+    """Train SVR model with caching"""
+    params = {
+        'C': [0.1, 1, 10],
+        'kernel': ['linear', 'rbf'],
+        'gamma': ['scale', 'auto']
+    }
+    svr = SVR()
+    model = GridSearchCV(svr, params, cv=5, scoring='neg_mean_squared_error', verbose=1)
+    model.fit(X_train, y_train)
+    return model.best_estimator_
+
+@memory.cache
+def train_xgboost(X_train, y_train):
+    """Train XGBoost model with caching"""
+    params = {
+        'n_estimators': [50, 100],
+        'learning_rate': [0.01, 0.1],
+        'max_depth': [3, 5],
+        'subsample': [0.8, 0.9],
+        'colsample_bytree': [0.8, 0.9]
+    }
+    xgb = XGBRegressor(random_state=42, enable_categorical=True)
+    model = GridSearchCV(xgb, params, cv=5, scoring='neg_mean_squared_error', verbose=1)
+    model.fit(X_train, y_train)
+    return model.best_estimator_
+
+def train_lstm(X_train, y_train):
+    """Train LSTM model compatible with TensorFlow 2.19.0"""
+    model = Sequential([
+        LSTM(64, input_shape=(X_train.shape[1], 1)),  # Removed return_sequences=False for TF 2.19.0
+        Dense(32, activation='relu'),
+        Dense(1) 
+        ])
+    
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+        loss='mse',
+        metrics=['mae']
+    )
+    
+    early_stop = EarlyStopping(
+        monitor='val_loss',
+        patience=10,
+        restore_best_weights=True
+    )
+    
+    X_train_reshaped = X_train.to_numpy().reshape(X_train.shape[0], X_train.shape[1], 1)
+    
+    history = model.fit(
+        X_train_reshaped, y_train,
+        epochs=100,
+        batch_size=32,
+        validation_split=0.2,
+        callbacks=[early_stop],
+        verbose=1
+    )
+    
+    return model
+
+def save_model(model, model_name, coin_index=1, input_shape=None):
+    """Save trained model to file with version info"""
+    model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index}"
+    os.makedirs(model_dir, exist_ok=True)
+    
+    with open(f"{model_dir}/requirements.txt", "w") as f:
+        f.write(f"scikit-learn=={sklearn.__version__}\n")
+        f.write(f"xgboost=={xgboost.__version__}\n")
+        f.write(f"tensorflow=={tf.__version__}\n")
+        f.write(f"joblib=={joblib.__version__}\n")
+    
+    if model_name == 'LSTM':
+        model.save(f"{model_dir}/lstm_model.keras")
+    else:
+        joblib.dump(model, f"{model_dir}/{model_name.lower().replace(' ', '_')}_model.pkl", compress=3)
+    
+    metadata = {
+        'training_date': pd.Timestamp.now().isoformat(),
+        'input_shape': input_shape,
+        'model_type': model_name
+    }
+    joblib.dump(metadata, f"{model_dir}/{model_name.lower().replace(' ', '_')}_metadata.pkl")
+    
+    return model_dir
+
+def train_models_for_coin(selected_data, coin_index):
+    """Train all models for a specific coin with progress tracking"""
+    coin_name = selected_data.columns[coin_index]
+    st.session_state.training_progress[coin_name] = {
+        'status': 'In Progress',
+        'current_model': None,
+        'progress': 0
+    }
+    
+    try:
+        X_train, X_test, y_train, y_test = prepare_data(selected_data, coin_index)
+        models = {}
+        
+        # Train Gradient Boosting
+        st.session_state.training_progress[coin_name]['current_model'] = 'Gradient Boosting'
+        models['Gradient Boosting'] = train_gradient_boosting(X_train, y_train)
+        st.session_state.training_progress[coin_name]['progress'] = 25
+        
+        # Train SVR
+        st.session_state.training_progress[coin_name]['current_model'] = 'SVR'
+        models['SVR'] = train_svr(X_train, y_train)
+        st.session_state.training_progress[coin_name]['progress'] = 50
+        
+        # Train XGBoost
+        st.session_state.training_progress[coin_name]['current_model'] = 'XGBoost'
+        models['XGBoost'] = train_xgboost(X_train, y_train)
+        st.session_state.training_progress[coin_name]['progress'] = 75
+        
+        # Train LSTM
+        st.session_state.training_progress[coin_name]['current_model'] = 'LSTM'
+        models['LSTM'] = train_lstm(X_train, y_train)
+        st.session_state.training_progress[coin_name]['progress'] = 100
+        
+        # Save models
+        saved_paths = {name: save_model(model, name, coin_index + 1, X_train.shape[1]) 
+                      for name, model in models.items()}
+        
+        st.session_state.training_progress[coin_name]['status'] = 'Completed'
+        st.session_state.model_paths.update(saved_paths)
+        
+    except Exception as e:
+        st.session_state.training_progress[coin_name]['status'] = f'Failed: {str(e)}'
+        raise e
+
+def train_all_models_background(selected_data):
+    """Train models for all coins in a background thread"""
+    st.session_state.training_started = True
     st.session_state.models_trained = False
-if 'model_paths' not in st.session_state:
-    st.session_state.model_paths = {}
+    
+    def training_task():
+        try:
+            for coin_idx in range(selected_data.shape[1]):
+                train_models_for_coin(selected_data, coin_idx)
+            st.session_state.models_trained = True
+        except Exception as e:
+            st.error(f"Training failed: {str(e)}")
+    
+    st.session_state.training_thread = threading.Thread(target=training_task)
+    st.session_state.training_thread.start()
+
+def check_training_status():
+    """Check and display training progress"""
+    if not st.session_state.training_progress:
+        return False
+    
+    st.subheader("Training Progress")
+    for coin_name, progress in st.session_state.training_progress.items():
+        if progress['status'] == 'Completed':
+            st.success(f"{coin_name}: Training completed successfully!")
+        elif progress['status'].startswith('Failed'):
+            st.error(f"{coin_name}: {progress['status']}")
+        else:
+            st.info(f"{coin_name}: {progress['status']} - {progress['current_model']}")
+            st.progress(progress['progress'] / 100)
+    
+    # Check if all training is complete
+    all_completed = all(p['status'] == 'Completed' for p in st.session_state.training_progress.values())
+    if all_completed:
+        st.session_state.models_trained = True
+        st.balloons()
+        return True
+    return False
 
 # Fetch cryptocurrency data
 def get_crypto_data(ticker, start_date, end_date):
@@ -85,8 +293,6 @@ ticker_symbols = ['BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 'XRP-G
 end_date = datetime.now()
 start_date = end_date - timedelta(days=4*365)  # four years ago
 
-
-
 # Try to load existing data or fetch fresh data
 data_file = "Cleaned_combined_crypto_data.csv"
 if os.path.exists(data_file):
@@ -103,10 +309,6 @@ else:
         combined_data.drop(['Dividends', 'Stock Splits'], axis=1, inplace=True)
         combined_data.to_csv(data_file)
 
-if not os.path.exists("trained_models"):
-    st.info("First-time setup: Training initial models...")
-    train_all_models(selected_data)
-    st.session_state.models_trained = True
 # Generate selected coins through PCA and clustering
 def generate_selected_data(data):
     pivoted_data = data.pivot(columns='Crypto', values='Close')
@@ -145,6 +347,11 @@ else:
         selected_data.to_csv(selected_data_file)
     else:
         selected_data = pd.DataFrame()
+
+# Check if models need to be trained on first run
+if not os.path.exists("trained_models") and not selected_data.empty:
+    st.info("First-time setup: Training initial models...")
+    train_all_models_background(selected_data)
 
 # UI Functions
 def home_section():
@@ -542,19 +749,10 @@ def plot_coin_scatter():
     fig.update_layout(height=800, width=1000, showlegend=False)
     st.plotly_chart(fig)
 
-# Add this near your imports in the main app
-from training import train_all_models
-
-# Modify your model evaluation function to handle cases where models don't exist
 def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
     """
     Evaluate machine learning models for a specific cryptocurrency with version compatibility checks
     and automatic recovery if models fail to load.
-    
-    Parameters:
-    - data: DataFrame containing the cryptocurrency data
-    - coin_index: Index of the cryptocurrency column to evaluate
-    - chosen_model: Specific model to evaluate ('all' evaluates all models)
     """
     try:
         # Validate input data
@@ -563,7 +761,7 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
             return
             
         coin_name = data.columns[coin_index]
-        model_dir = f"Model_SELECTED_COIN_{coin_index+1}"
+        model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index+1}"
         
         # Display version requirements if they exist
         req_file = f"{model_dir}/requirements.txt"
@@ -574,8 +772,7 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
         # Check if models exist, if not train them
         if not os.path.exists(model_dir):
             st.warning(f"No trained models found for {coin_name}. Training models now...")
-            with st.spinner(f"Training models for {coin_name}..."):
-                train_all_models(data, coin_index)
+            train_models_for_coin(data, coin_index)
             st.success("Models trained successfully!")
         
         # Prepare data with lag features
@@ -602,10 +799,8 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
             }
         except Exception as e:
             st.warning(f"Model loading failed due to version mismatch. Retraining models...")
-            models = train_all_models(selected_data, coin_index)
-            
             with st.spinner("Retraining models..."):
-                train_all_models(data, coin_index)
+                train_models_for_coin(data, coin_index)
                 retrained = True
                 
                 # Second attempt after retraining
@@ -617,12 +812,8 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
                         'LSTM': tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
                     }
                 except Exception as e:
-                    st.warning(f"Model loading failed due to version mismatch. Retraining models...")
-                    with st.spinner("Retraining models..."):
-                        # Train models and get them directly
-                        models, _ = train_all_models(data, coin_index)
-                        st.success("Models successfully retrained!")
-                        retrained = True
+                    st.error(f"Model loading failed again: {str(e)}")
+                    return
 
         # Determine which models to evaluate
         if chosen_model.lower() == 'all':
@@ -773,9 +964,9 @@ def evaluate_and_plot_model(coin_index, model_choice, frequency, num_periods):
     
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
-    model_filename = f"Model_SELECTED_COIN_{coin_index+1}/"
+    model_filename = f"trained_models/Model_SELECTED_COIN_{coin_index+1}/"
     if model_choice == 'LSTM':
-        model_filename += "lstm_model.h5"
+        model_filename += "lstm_model.keras"
         if os.path.exists(model_filename):
             model = load_model(model_filename)
             X_array = X.to_numpy().reshape(X.shape[0], X.shape[1], 1)
@@ -887,8 +1078,8 @@ def determine_best_time_to_trade_future(chosen_coin, num_days):
     return selected_data
 
 def forecast_price_with_model(chosen_coin, num_days, model_type):
-    coin_index = selected_data.columns.get_loc(chosen_coin) + 1
-    model_filename = f"Model_SELECTED_COIN_{coin_index}/"
+    coin_index = selected_data.columns.get_loc(chosen_coin)
+    model_filename = f"trained_models/Model_SELECTED_COIN_{coin_index+1}/"
     
     if model_type == "SVR":
         model_filename += "svr_model.pkl"
@@ -897,7 +1088,7 @@ def forecast_price_with_model(chosen_coin, num_days, model_type):
     elif model_type == "XGBoost":
         model_filename += "xgboost_model.pkl"
     elif model_type == "LSTM":
-        model_filename += "lstm_model.h5"
+        model_filename += "lstm_model.keras"
     else:
         st.error("Invalid model type.")
         return None, None
@@ -945,12 +1136,12 @@ def find_best_coins(model_type, desired_profit, num_days):
     models = {}
     
     for coin_index, coin in enumerate(coins, start=1):
-        model_folder = f"Model_SELECTED_COIN_{coin_index}"
+        model_folder = f"trained_models/Model_SELECTED_COIN_{coin_index}"
         model_file = f"{model_folder}/{model_type.lower()}_model.pkl"
         
         if os.path.exists(model_file):
             if model_type == 'LSTM':
-                models[coin] = tf.keras.models.load_model(model_file.replace('.pkl', '.h5'))
+                models[coin] = tf.keras.models.load_model(model_file.replace('.pkl', '.keras'))
             else:
                 models[coin] = joblib.load(model_file)
     
@@ -1051,6 +1242,8 @@ header {
 
 # Main app navigation
 def main():
+    check_versions()
+    
     st.sidebar.title("Navigation")
     page = st.sidebar.radio("Go to", ["Home", "About Us", "Dataset", "Coin Correlation", 
                                      "Moving Average", "Visualizations", "Predictions", "NEWS"])
@@ -1104,36 +1297,36 @@ def main():
             predict_highs_lows()
     elif page == "Predictions":
         prediction_option = st.sidebar.radio("Select:", 
-                                           ["Dataset", "Training Model Metrics", "Prediction Graphs",
+                                           ["Dataset", "Training", "Training Model Metrics", "Prediction Graphs",
                                             "Buy and Sell Prediction", "Predict coin by Profit"])
         
         if prediction_option == "Dataset":
             display_selected_coins()
             plot_coin_scatter()
-        # In your predictions section
         elif prediction_option == "Training":
             st.header("Model Training")
             
-            if st.button("Train All Models"):
-                with st.spinner("Training models (this may take several minutes)..."):
-                    try:
-                        train_all_models(selected_data)
-                        st.success("Models trained successfully!")
-                        st.session_state.models_trained = True
-                    except Exception as e:
-                        st.error(f"Training failed: {str(e)}")
-            
-            if st.session_state.models_trained:
-                st.info("Models are trained and ready for predictions")
+            if st.session_state.training_started:
+                if check_training_status():
+                    st.success("All models trained successfully!")
+                else:
+                    st.warning("Training in progress...")
+                    st.button("Refresh Status")
             else:
-                st.warning("Models need to be trained before making predictions")
+                if st.button("Train All Models"):
+                    with st.spinner("Starting model training in background..."):
+                        train_all_models_background(selected_data)
+                        st.rerun()
+                
+                if st.session_state.models_trained:
+                    st.info("Models are already trained and ready for predictions")
         elif prediction_option == "Training Model Metrics":
             coins = st.multiselect("Select coins:", selected_data.columns)
             model = st.selectbox("Select model:", ['all', 'Gradient Boosting', 'SVR', 'XGBoost', 'LSTM'])
             
             for coin in coins:
                 coin_index = selected_data.columns.get_loc(coin)
-                evaluate_models_selected_coin(selected_data, coin_index, model)  # Pass selected_data as first argument
+                evaluate_models_selected_coin(selected_data, coin_index, model)
         elif prediction_option == "Prediction Graphs":
             coin = st.selectbox("Select coin:", selected_data.columns)
             model = st.selectbox("Select model:", ['GBR', 'SVR', 'XGB', 'LSTM'])
