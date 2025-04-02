@@ -37,6 +37,8 @@ import pkg_resources
 from keras.callbacks import EarlyStopping
 import logging
 from logging.handlers import RotatingFileHandler
+import sklearn
+from sklearn import __version__ as sklearn_version
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -140,23 +142,30 @@ def save_model(model, model_name, coin_index=1, input_shape=None):
     model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index}"
     os.makedirs(model_dir, exist_ok=True)
     
-    with open(f"{model_dir}/requirements.txt", "w") as f:
-        f.write(f"scikit-learn=={sklearn.__version__}\n")
+    # Write requirements file
+    requirements_file = os.path.join(model_dir, "requirements.txt")
+    with open(requirements_file, "w") as f:
+        f.write(f"scikit-learn=={sklearn_version}\n")
         f.write(f"xgboost=={xgboost.__version__}\n")
         f.write(f"tensorflow=={tf.__version__}\n")
         f.write(f"joblib=={joblib.__version__}\n")
     
+    # Save the model
     if model_name == 'LSTM':
-        model.save(f"{model_dir}/lstm_model.keras")
+        model_path = os.path.join(model_dir, "lstm_model.keras")
+        model.save(model_path)
     else:
-        joblib.dump(model, f"{model_dir}/{model_name.lower().replace(' ', '_')}_model.pkl", compress=3)
+        model_path = os.path.join(model_dir, f"{model_name.lower().replace(' ', '_')}_model.pkl")
+        joblib.dump(model, model_path, compress=3)
     
+    # Save metadata
     metadata = {
         'training_date': pd.Timestamp.now().isoformat(),
         'input_shape': input_shape,
         'model_type': model_name
     }
-    joblib.dump(metadata, f"{model_dir}/{model_name.lower().replace(' ', '_')}_metadata.pkl")
+    metadata_path = os.path.join(model_dir, f"{model_name.lower().replace(' ', '_')}_metadata.pkl")
+    joblib.dump(metadata, metadata_path)
     
     return model_dir
 
