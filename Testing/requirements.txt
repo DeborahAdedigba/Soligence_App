@@ -12,3 +12,4 @@ feedparser
 joblib
 matplotlib
 yfinance
+keras
