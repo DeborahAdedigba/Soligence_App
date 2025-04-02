@@ -616,10 +616,13 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
                         'XGBOOST': joblib.load(f"{model_dir}/xgboost_model.pkl"),
                         'LSTM': tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
                     }
-                    st.success("Models successfully retrained and loaded!")
                 except Exception as e:
-                    st.error(f"Failed to load even after retraining: {str(e)}")
-                    return
+                    st.warning(f"Model loading failed due to version mismatch. Retraining models...")
+                    with st.spinner("Retraining models..."):
+                        # Train models and get them directly
+                        models, _ = train_all_models(data, coin_index)
+                        st.success("Models successfully retrained!")
+                        retrained = True
 
         # Determine which models to evaluate
         if chosen_model.lower() == 'all':

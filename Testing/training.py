@@ -164,32 +164,61 @@ def train_all_models(selected_data, coin_index=0):
             'LSTM': train_lstm(X_train, y_train)
         }
         
+        # Save the models
         saved_paths = {}
         for name, model in models.items():
             saved_paths[name] = save_model(model, name, coin_index + 1)
         
-        # Evaluate and save performance metrics
-        performance = {}
-        for name, model in models.items():
-            if name == 'LSTM':
-                X_test_reshaped = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
-                predictions = model.predict(X_test_reshaped).flatten()
-            else:
-                predictions = model.predict(X_test)
-            
-            performance[name] = {
-                'MAE': mean_absolute_error(y_test, predictions),
-                'MSE': mean_squared_error(y_test, predictions),
-                'R2': r2_score(y_test, predictions)
-            }
-        
-        joblib.dump(performance, f"trained_models/Model_SELECTED_COIN_{coin_index+1}/performance_metrics.pkl")
-        
-        return saved_paths
+        # Return both the models and their paths
+        return models, saved_paths
     
     except Exception as e:
         print(f"Error during training: {str(e)}")
         raise
+
+# def train_all_models(selected_data, coin_index=0):
+#     try:
+#         X_train, X_test, y_train, y_test = prepare_data(selected_data, coin_index)
+        
+#         # Store these in session state for later access
+#         st.session_state.X_train = X_train
+#         st.session_state.X_test = X_test
+#         st.session_state.y_train = y_train
+#         st.session_state.y_test = y_test
+
+#         models = {
+#             'Gradient Boosting': train_gradient_boosting(X_train, y_train),
+#             'SVR': train_svr(X_train, y_train),
+#             'XGBoost': train_xgboost(X_train, y_train),
+#             'LSTM': train_lstm(X_train, y_train)
+#         }
+        
+#         saved_paths = {}
+#         for name, model in models.items():
+#             saved_paths[name] = save_model(model, name, coin_index + 1)
+        
+#         # Evaluate and save performance metrics
+#         performance = {}
+#         for name, model in models.items():
+#             if name == 'LSTM':
+#                 X_test_reshaped = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
+#                 predictions = model.predict(X_test_reshaped).flatten()
+#             else:
+#                 predictions = model.predict(X_test)
+            
+#             performance[name] = {
+#                 'MAE': mean_absolute_error(y_test, predictions),
+#                 'MSE': mean_squared_error(y_test, predictions),
+#                 'R2': r2_score(y_test, predictions)
+#             }
+        
+#         joblib.dump(performance, f"trained_models/Model_SELECTED_COIN_{coin_index+1}/performance_metrics.pkl")
+        
+#         return saved_paths
+    
+#     except Exception as e:
+#         print(f"Error during training: {str(e)}")
+#         raise
 
 if __name__ == "__main__":
     # For standalone training
