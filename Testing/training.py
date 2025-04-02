@@ -9,7 +9,7 @@ import joblib
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.svm import SVR
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from xgboost import XGBRegressor
 from keras.models import Sequential
 from keras.layers import LSTM, Dense
@@ -80,7 +80,7 @@ def train_xgboost(X_train, y_train):
         'subsample': [0.8, 0.9],
         'colsample_bytree': [0.8, 0.9]
     }
-    xgb = XGBRegressor(random_state=42, enable_categorical=True)  # Updated for xgboost 3.0.0
+    xgb = XGBRegressor(random_state=42, enable_categorical=True)
     model = GridSearchCV(xgb, params, cv=5, scoring='neg_mean_squared_error', verbose=1)
     model.fit(X_train, y_train)
     return model.best_estimator_
@@ -118,12 +118,11 @@ def train_lstm(X_train, y_train):
     
     return model
 
-def save_model(model, model_name, coin_index=1):
+def save_model(model, model_name, coin_index=1, input_shape=None):
     """Save trained model to file with version info"""
     model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index}"
     os.makedirs(model_dir, exist_ok=True)
     
-    # Save version information
     with open(f"{model_dir}/requirements.txt", "w") as f:
         f.write(f"scikit-learn=={sklearn.__version__}\n")
         f.write(f"xgboost=={xgboost.__version__}\n")
@@ -131,103 +130,32 @@ def save_model(model, model_name, coin_index=1):
         f.write(f"joblib=={joblib.__version__}\n")
     
     if model_name == 'LSTM':
-        model_path = f"{model_dir}/lstm_model.keras"
-        model.save(model_path)
+        model.save(f"{model_dir}/lstm_model.keras")
     else:
-        model_path = f"{model_dir}/{model_name.lower().replace(' ', '_')}_model.pkl"
-        joblib.dump(model, model_path, compress=3)  # Using compress=3 for smaller files
+        joblib.dump(model, f"{model_dir}/{model_name.lower().replace(' ', '_')}_model.pkl", compress=3)
     
-    # Save training metadata
     metadata = {
         'training_date': pd.Timestamp.now().isoformat(),
-        'input_shape': model.n_features_in_ if hasattr(model, 'n_features_in_') else X_train.shape[1],
+        'input_shape': input_shape,
         'model_type': model_name
     }
     joblib.dump(metadata, f"{model_dir}/{model_name.lower().replace(' ', '_')}_metadata.pkl")
     
-    return model_path
+    return model_dir
 
 def train_all_models(selected_data, coin_index=0):
-    try:
-        X_train, X_test, y_train, y_test = prepare_data(selected_data, coin_index)
-        
-        # Store these in session state for later access
-        st.session_state.X_train = X_train
-        st.session_state.X_test = X_test
-        st.session_state.y_train = y_train
-        st.session_state.y_test = y_test
-
-        models = {
-            'Gradient Boosting': train_gradient_boosting(X_train, y_train),
-            'SVR': train_svr(X_train, y_train),
-            'XGBoost': train_xgboost(X_train, y_train),
-            'LSTM': train_lstm(X_train, y_train)
-        }
-        
-        # Save the models
-        saved_paths = {}
-        for name, model in models.items():
-            saved_paths[name] = save_model(model, name, coin_index + 1)
-        
-        # Return both the models and their paths
-        return models, saved_paths
-    
-    except Exception as e:
-        print(f"Error during training: {str(e)}")
-        raise
-
-# def train_all_models(selected_data, coin_index=0):
-#     try:
-#         X_train, X_test, y_train, y_test = prepare_data(selected_data, coin_index)
-        
-#         # Store these in session state for later access
-#         st.session_state.X_train = X_train
-#         st.session_state.X_test = X_test
-#         st.session_state.y_train = y_train
-#         st.session_state.y_test = y_test
-
-#         models = {
-#             'Gradient Boosting': train_gradient_boosting(X_train, y_train),
-#             'SVR': train_svr(X_train, y_train),
-#             'XGBoost': train_xgboost(X_train, y_train),
-#             'LSTM': train_lstm(X_train, y_train)
-#         }
-        
-#         saved_paths = {}
-#         for name, model in models.items():
-#             saved_paths[name] = save_model(model, name, coin_index + 1)
-        
-#         # Evaluate and save performance metrics
-#         performance = {}
-#         for name, model in models.items():
-#             if name == 'LSTM':
-#                 X_test_reshaped = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
-#                 predictions = model.predict(X_test_reshaped).flatten()
-#             else:
-#                 predictions = model.predict(X_test)
-            
-#             performance[name] = {
-#                 'MAE': mean_absolute_error(y_test, predictions),
-#                 'MSE': mean_squared_error(y_test, predictions),
-#                 'R2': r2_score(y_test, predictions)
-#             }
-        
-#         joblib.dump(performance, f"trained_models/Model_SELECTED_COIN_{coin_index+1}/performance_metrics.pkl")
-        
-#         return saved_paths
-    
-#     except Exception as e:
-#         print(f"Error during training: {str(e)}")
-#         raise
+    X_train, X_test, y_train, y_test = prepare_data(selected_data, coin_index)
+    models = {
+        'Gradient Boosting': train_gradient_boosting(X_train, y_train),
+        'SVR': train_svr(X_train, y_train),
+        'XGBoost': train_xgboost(X_train, y_train),
+        'LSTM': train_lstm(X_train, y_train)
+    }
+    saved_paths = {name: save_model(model, name, coin_index + 1, X_train.shape[1]) for name, model in models.items()}
+    return models, saved_paths
 
 if __name__ == "__main__":
-    # For standalone training
     selected_data = pd.read_csv("Selected_coins.csv", index_col='Date')
-    print("Training models...")
-    
-    # Train models for each coin
     for coin_idx in range(selected_data.shape[1]):
-        print(f"\nTraining models for coin {coin_idx+1} of {selected_data.shape[1]}")
         train_all_models(selected_data, coin_idx)
-    
     print("\nTraining completed successfully!")
