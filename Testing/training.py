@@ -15,6 +15,7 @@ from keras.models import Sequential
 from keras.layers import LSTM, Dense
 from keras.callbacks import EarlyStopping
 from joblib import Memory
+import streamlit as st
 
 # Configuration
 warnings.filterwarnings("ignore", category=UserWarning)
