@@ -1411,7 +1411,4 @@ if __name__ == "__main__":
 
 
     
-        # [Rest of your prediction options remain the same...]
-
-if __name__ == "__main__":
-    main()
+   
