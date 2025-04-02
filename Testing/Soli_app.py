@@ -65,20 +65,20 @@ def initialize_session_state():
 
 # Version checking
 def check_versions():
-    requirements = {
+    required = {
         'scikit-learn': '1.6.1',
         'xgboost': '3.0.0',
         'tensorflow': '2.19.0',
         'joblib': '1.4.2'
     }
     
-    for pkg, req_version in requirements.items():
+    for pkg, req_ver in required.items():
         try:
-            installed = pkg_resources.get_distribution(pkg).version
-            if installed != req_version:
-                st.warning(f"Version mismatch: {pkg} (installed: {installed}, required: {req_version})")
-        except Exception:
-            st.error(f"{pkg} not installed")
+            current_ver = globals()[f"{pkg.replace('-', '_')}_version"]
+            if current_ver != req_ver:
+                logging.warning(f"Version mismatch for {pkg}: installed {current_ver}, expected {req_ver}")
+        except Exception as e:
+            logging.error(f"Version check failed for {pkg}: {str(e)}")
 
 # Training functions
 def prepare_data(selected_data, coin_index=0):
@@ -137,37 +137,64 @@ def train_xgboost(X_train, y_train):
     return xgb
 
 
+# Add these imports at the TOP of your script (with other imports)
+import sklearn
+from sklearn import __version__ as sklearn_version
+import xgboost
+from xgboost import __version__ as xgboost_version
+import tensorflow as tf
+import joblib
+from joblib import __version__ as joblib_version
+
+# Then modify your save_model function to this robust version:
 def save_model(model, model_name, coin_index=1, input_shape=None):
     """Save trained model to file with version info"""
-    model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index}"
-    os.makedirs(model_dir, exist_ok=True)
-    
-    # Write requirements file
-    requirements_file = os.path.join(model_dir, "requirements.txt")
-    with open(requirements_file, "w") as f:
-        f.write(f"scikit-learn=={sklearn_version}\n")
-        f.write(f"xgboost=={xgboost.__version__}\n")
-        f.write(f"tensorflow=={tf.__version__}\n")
-        f.write(f"joblib=={joblib.__version__}\n")
-    
-    # Save the model
-    if model_name == 'LSTM':
-        model_path = os.path.join(model_dir, "lstm_model.keras")
-        model.save(model_path)
-    else:
-        model_path = os.path.join(model_dir, f"{model_name.lower().replace(' ', '_')}_model.pkl")
-        joblib.dump(model, model_path, compress=3)
-    
-    # Save metadata
-    metadata = {
-        'training_date': pd.Timestamp.now().isoformat(),
-        'input_shape': input_shape,
-        'model_type': model_name
-    }
-    metadata_path = os.path.join(model_dir, f"{model_name.lower().replace(' ', '_')}_metadata.pkl")
-    joblib.dump(metadata, metadata_path)
-    
-    return model_dir
+    try:
+        model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index}"
+        os.makedirs(model_dir, exist_ok=True)
+        
+        # Write requirements file with fallback version handling
+        requirements_file = os.path.join(model_dir, "requirements.txt")
+        with open(requirements_file, "w") as f:
+            # Get versions with fallbacks
+            sklearn_ver = getattr(sklearn, '__version__', 'unknown')
+            xgboost_ver = getattr(xgboost, '__version__', 'unknown')
+            tf_ver = getattr(tf, '__version__', 'unknown')
+            joblib_ver = getattr(joblib, '__version__', 'unknown')
+            
+            f.write(f"scikit-learn=={sklearn_ver}\n")
+            f.write(f"xgboost=={xgboost_ver}\n") 
+            f.write(f"tensorflow=={tf_ver}\n")
+            f.write(f"joblib=={joblib_ver}\n")
+        
+        # Save the model based on type
+        if model_name == 'LSTM':
+            model_path = os.path.join(model_dir, "lstm_model.keras")
+            model.save(model_path)
+        else:
+            model_path = os.path.join(model_dir, f"{model_name.lower().replace(' ', '_')}_model.pkl")
+            joblib.dump(model, model_path, compress=3)
+        
+        # Save metadata
+        metadata = {
+            'training_date': pd.Timestamp.now().isoformat(),
+            'input_shape': input_shape,
+            'model_type': model_name,
+            'versions': {
+                'scikit-learn': sklearn_ver,
+                'xgboost': xgboost_ver,
+                'tensorflow': tf_ver,
+                'joblib': joblib_ver
+            }
+        }
+        metadata_path = os.path.join(model_dir, f"{model_name.lower().replace(' ', '_')}_metadata.pkl")
+        joblib.dump(metadata, metadata_path)
+        
+        return model_dir
+        
+    except Exception as e:
+        logging.error(f"Error saving model {model_name}: {str(e)}")
+        raise
 
 # Configure logging
 def setup_logging():
