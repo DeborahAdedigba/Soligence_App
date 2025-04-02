@@ -46,18 +46,20 @@ os.makedirs("trained_models", exist_ok=True)
 memory = Memory("cached_models", verbose=0)
 
 # Initialize session state
-if 'models_trained' not in st.session_state:
-    st.session_state.models_trained = False
-if 'model_paths' not in st.session_state:
-    st.session_state.model_paths = {}
-if 'training_progress' not in st.session_state:
-    st.session_state.training_progress = {}
-if 'training_thread' not in st.session_state:
-    st.session_state.training_thread = None
-if 'training_started' not in st.session_state:
-    st.session_state.training_started = False
-if 'last_update' not in st.session_state:
-    st.session_state.last_update = time.time()
+def initialize_session_state():
+    """Initialize all required session state variables"""
+    if 'models_trained' not in st.session_state:
+        st.session_state.models_trained = False
+    if 'model_paths' not in st.session_state:
+        st.session_state.model_paths = {}
+    if 'training_progress' not in st.session_state:
+        st.session_state.training_progress = {}
+    if 'training_thread' not in st.session_state:
+        st.session_state.training_thread = None
+    if 'training_started' not in st.session_state:
+        st.session_state.training_started = False
+    if 'last_update' not in st.session_state:
+        st.session_state.last_update = time.time()
 
 # Version checking
 def check_versions():
@@ -175,83 +177,111 @@ setup_logging()
 # Modify the train_models_for_coin function to add logging
 def train_models_for_coin(selected_data, coin_index):
     """Train all models for a specific coin with progress tracking"""
+    # Initialize session state for this thread
+    if not hasattr(st.session_state, 'training_progress'):
+        st.session_state.training_progress = {}
+    
     coin_name = selected_data.columns[coin_index]
     logging.info(f"Starting training for {coin_name}")
     
-    st.session_state.training_progress[coin_name] = {
-        'status': 'In Progress',
-        'current_model': None,
-        'progress': 0,
-        'message': ''
-    }
-    
     try:
+        # Thread-safe session state update
+        with threading.Lock():
+            st.session_state.training_progress[coin_name] = {
+                'status': 'In Progress',
+                'current_model': None,
+                'progress': 0,
+                'message': ''
+            }
+            st.session_state.last_update = time.time()
+
         logging.info(f"Preparing data for {coin_name}")
         X_train, X_test, y_train, y_test = prepare_data(selected_data, coin_index)
         models = {}
         
         # Train Gradient Boosting
         logging.info(f"Training Gradient Boosting for {coin_name}")
-        st.session_state.training_progress[coin_name]['current_model'] = 'Gradient Boosting'
-        st.session_state.training_progress[coin_name]['message'] = 'Training Gradient Boosting...'
-        st.session_state.last_update = time.time()
+        with threading.Lock():
+            st.session_state.training_progress[coin_name]['current_model'] = 'Gradient Boosting'
+            st.session_state.training_progress[coin_name]['message'] = 'Training Gradient Boosting...'
+            st.session_state.last_update = time.time()
+        
         models['Gradient Boosting'] = train_gradient_boosting(X_train, y_train)
-        st.session_state.training_progress[coin_name]['progress'] = 25
-        st.session_state.training_progress[coin_name]['message'] = 'Gradient Boosting completed'
-        st.session_state.last_update = time.time()
+        
+        with threading.Lock():
+            st.session_state.training_progress[coin_name]['progress'] = 25
+            st.session_state.training_progress[coin_name]['message'] = 'Gradient Boosting completed'
+            st.session_state.last_update = time.time()
         logging.info(f"Completed Gradient Boosting for {coin_name}")
         
         # Train SVR
         logging.info(f"Training SVR for {coin_name}")
-        st.session_state.training_progress[coin_name]['current_model'] = 'SVR'
-        st.session_state.training_progress[coin_name]['message'] = 'Training SVR...'
-        st.session_state.last_update = time.time()
+        with threading.Lock():
+            st.session_state.training_progress[coin_name]['current_model'] = 'SVR'
+            st.session_state.training_progress[coin_name]['message'] = 'Training SVR...'
+            st.session_state.last_update = time.time()
+        
         models['SVR'] = train_svr(X_train, y_train)
-        st.session_state.training_progress[coin_name]['progress'] = 50
-        st.session_state.training_progress[coin_name]['message'] = 'SVR completed'
-        st.session_state.last_update = time.time()
+        
+        with threading.Lock():
+            st.session_state.training_progress[coin_name]['progress'] = 50
+            st.session_state.training_progress[coin_name]['message'] = 'SVR completed'
+            st.session_state.last_update = time.time()
         logging.info(f"Completed SVR for {coin_name}")
         
         # Train XGBoost
         logging.info(f"Training XGBoost for {coin_name}")
-        st.session_state.training_progress[coin_name]['current_model'] = 'XGBoost'
-        st.session_state.training_progress[coin_name]['message'] = 'Training XGBoost...'
-        st.session_state.last_update = time.time()
+        with threading.Lock():
+            st.session_state.training_progress[coin_name]['current_model'] = 'XGBoost'
+            st.session_state.training_progress[coin_name]['message'] = 'Training XGBoost...'
+            st.session_state.last_update = time.time()
+        
         models['XGBoost'] = train_xgboost(X_train, y_train)
-        st.session_state.training_progress[coin_name]['progress'] = 75
-        st.session_state.training_progress[coin_name]['message'] = 'XGBoost completed'
-        st.session_state.last_update = time.time()
+        
+        with threading.Lock():
+            st.session_state.training_progress[coin_name]['progress'] = 75
+            st.session_state.training_progress[coin_name]['message'] = 'XGBoost completed'
+            st.session_state.last_update = time.time()
         logging.info(f"Completed XGBoost for {coin_name}")
         
         # Train LSTM
         logging.info(f"Training LSTM for {coin_name} (this may take a while)")
-        st.session_state.training_progress[coin_name]['current_model'] = 'LSTM'
-        st.session_state.training_progress[coin_name]['message'] = 'Training LSTM (this may take a few minutes)...'
-        st.session_state.last_update = time.time()
+        with threading.Lock():
+            st.session_state.training_progress[coin_name]['current_model'] = 'LSTM'
+            st.session_state.training_progress[coin_name]['message'] = 'Training LSTM (this may take a few minutes)...'
+            st.session_state.last_update = time.time()
+        
         models['LSTM'] = train_lstm(X_train, y_train)
-        st.session_state.training_progress[coin_name]['progress'] = 100
-        st.session_state.training_progress[coin_name]['message'] = 'LSTM completed'
-        st.session_state.last_update = time.time()
+        
+        with threading.Lock():
+            st.session_state.training_progress[coin_name]['progress'] = 100
+            st.session_state.training_progress[coin_name]['message'] = 'LSTM completed'
+            st.session_state.last_update = time.time()
         logging.info(f"Completed LSTM for {coin_name}")
         
         # Save models
         logging.info(f"Saving models for {coin_name}")
-        saved_paths = {name: save_model(model, name, coin_index + 1, X_train.shape[1]) 
-                      for name, model in models.items()}
+        saved_paths = {}
+        for name, model in models.items():
+            model_dir = save_model(model, name, coin_index + 1, X_train.shape[1])
+            saved_paths[name] = model_dir
         
-        st.session_state.training_progress[coin_name]['status'] = 'Completed'
-        st.session_state.model_paths.update(saved_paths)
-        st.session_state.last_update = time.time()
+        with threading.Lock():
+            st.session_state.training_progress[coin_name]['status'] = 'Completed'
+            st.session_state.model_paths.update(saved_paths)
+            st.session_state.last_update = time.time()
         logging.info(f"Successfully completed training for {coin_name}")
         
     except Exception as e:
         error_msg = f"Error training {coin_name}: {str(e)}"
         logging.error(error_msg, exc_info=True)
-        st.session_state.training_progress[coin_name]['status'] = f'Failed: {str(e)}'
-        st.session_state.training_progress[coin_name]['message'] = error_msg
-        st.session_state.last_update = time.time()
+        with threading.Lock():
+            if coin_name in st.session_state.training_progress:
+                st.session_state.training_progress[coin_name]['status'] = f'Failed: {str(e)}'
+                st.session_state.training_progress[coin_name]['message'] = error_msg
+            st.session_state.last_update = time.time()
         raise e
-
+    
 # Modify the train_lstm function to add logging
 def train_lstm(X_train, y_train):
     """Train LSTM model with simplified architecture"""
@@ -292,6 +322,9 @@ def train_lstm(X_train, y_train):
 # Modify the train_all_models_background function
 def train_all_models_background(selected_data):
     """Train models for all coins in a background thread"""
+    # Ensure session state is initialized
+    initialize_session_state()
+    
     logging.info("Starting model training in background")
     st.session_state.training_started = True
     st.session_state.models_trained = False
@@ -301,14 +334,17 @@ def train_all_models_background(selected_data):
             logging.info(f"Training models for {min(4, selected_data.shape[1])} coins")
             for coin_idx in range(min(4, selected_data.shape[1])):
                 train_models_for_coin(selected_data, coin_idx)
-            st.session_state.models_trained = True
-            st.session_state.last_update = time.time()
+            
+            with threading.Lock():
+                st.session_state.models_trained = True
+                st.session_state.last_update = time.time()
             logging.info("All models trained successfully")
         except Exception as e:
             error_msg = f"Training failed: {str(e)}"
             logging.error(error_msg, exc_info=True)
-            st.error(error_msg)
-            st.session_state.last_update = time.time()
+            with threading.Lock():
+                st.error(error_msg)
+                st.session_state.last_update = time.time()
     
     st.session_state.training_thread = threading.Thread(target=training_task, daemon=True)
     st.session_state.training_thread.start()
@@ -1330,6 +1366,7 @@ header {
 
 # Main app navigation
 def main():
+    initialize_session_state()
     check_versions()
     
     st.sidebar.title("Navigation")
