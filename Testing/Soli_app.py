@@ -54,6 +54,8 @@ if 'training_thread' not in st.session_state:
     st.session_state.training_thread = None
 if 'training_started' not in st.session_state:
     st.session_state.training_started = False
+if 'last_update' not in st.session_state:
+    st.session_state.last_update = time.time()
 
 # Version checking
 def check_versions():
@@ -89,56 +91,52 @@ def prepare_data(selected_data, coin_index=0):
     
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
-@memory.cache
 def train_gradient_boosting(X_train, y_train):
-    """Train Gradient Boosting model with caching"""
+    """Train Gradient Boosting model with simplified parameters for faster training"""
     params = {
-        'n_estimators': [50, 100],
-        'learning_rate': [0.01, 0.1],
-        'max_depth': [3, 5],
-        'min_samples_leaf': [1, 2],
-        'subsample': [0.8, 0.9]
+        'n_estimators': 100,
+        'learning_rate': 0.1,
+        'max_depth': 3,
+        'min_samples_leaf': 2,
+        'subsample': 0.8,
+        'random_state': 42
     }
-    gb = GradientBoostingRegressor(random_state=42)
-    model = GridSearchCV(gb, params, cv=5, scoring='neg_mean_squared_error', verbose=1)
-    model.fit(X_train, y_train)
-    return model.best_estimator_
+    gb = GradientBoostingRegressor(**params)
+    gb.fit(X_train, y_train)
+    return gb
 
-@memory.cache
 def train_svr(X_train, y_train):
-    """Train SVR model with caching"""
+    """Train SVR model with simplified parameters"""
     params = {
-        'C': [0.1, 1, 10],
-        'kernel': ['linear', 'rbf'],
-        'gamma': ['scale', 'auto']
+        'C': 1.0,
+        'kernel': 'rbf',
+        'gamma': 'scale'
     }
-    svr = SVR()
-    model = GridSearchCV(svr, params, cv=5, scoring='neg_mean_squared_error', verbose=1)
-    model.fit(X_train, y_train)
-    return model.best_estimator_
+    svr = SVR(**params)
+    svr.fit(X_train, y_train)
+    return svr
 
-@memory.cache
 def train_xgboost(X_train, y_train):
-    """Train XGBoost model with caching"""
+    """Train XGBoost model with simplified parameters"""
     params = {
-        'n_estimators': [50, 100],
-        'learning_rate': [0.01, 0.1],
-        'max_depth': [3, 5],
-        'subsample': [0.8, 0.9],
-        'colsample_bytree': [0.8, 0.9]
+        'n_estimators': 100,
+        'learning_rate': 0.1,
+        'max_depth': 3,
+        'subsample': 0.8,
+        'colsample_bytree': 0.8,
+        'random_state': 42
     }
-    xgb = XGBRegressor(random_state=42, enable_categorical=True)
-    model = GridSearchCV(xgb, params, cv=5, scoring='neg_mean_squared_error', verbose=1)
-    model.fit(X_train, y_train)
-    return model.best_estimator_
+    xgb = XGBRegressor(**params)
+    xgb.fit(X_train, y_train)
+    return xgb
 
 def train_lstm(X_train, y_train):
-    """Train LSTM model compatible with TensorFlow 2.19.0"""
+    """Train LSTM model with simplified architecture"""
     model = Sequential([
-        LSTM(64, input_shape=(X_train.shape[1], 1)),  # Removed return_sequences=False for TF 2.19.0
-        Dense(32, activation='relu'),
-        Dense(1) 
-        ])
+        LSTM(32, input_shape=(X_train.shape[1], 1)),
+        Dense(16, activation='relu'),
+        Dense(1)
+    ])
     
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
@@ -148,7 +146,7 @@ def train_lstm(X_train, y_train):
     
     early_stop = EarlyStopping(
         monitor='val_loss',
-        patience=10,
+        patience=5,
         restore_best_weights=True
     )
     
@@ -156,11 +154,11 @@ def train_lstm(X_train, y_train):
     
     history = model.fit(
         X_train_reshaped, y_train,
-        epochs=100,
+        epochs=50,  # Reduced from 100
         batch_size=32,
         validation_split=0.2,
         callbacks=[early_stop],
-        verbose=1
+        verbose=0  # Disable verbose output
     )
     
     return model
@@ -196,7 +194,8 @@ def train_models_for_coin(selected_data, coin_index):
     st.session_state.training_progress[coin_name] = {
         'status': 'In Progress',
         'current_model': None,
-        'progress': 0
+        'progress': 0,
+        'message': ''
     }
     
     try:
@@ -205,23 +204,39 @@ def train_models_for_coin(selected_data, coin_index):
         
         # Train Gradient Boosting
         st.session_state.training_progress[coin_name]['current_model'] = 'Gradient Boosting'
+        st.session_state.training_progress[coin_name]['message'] = 'Training Gradient Boosting...'
+        st.session_state.last_update = time.time()
         models['Gradient Boosting'] = train_gradient_boosting(X_train, y_train)
         st.session_state.training_progress[coin_name]['progress'] = 25
+        st.session_state.training_progress[coin_name]['message'] = 'Gradient Boosting completed'
+        st.session_state.last_update = time.time()
         
         # Train SVR
         st.session_state.training_progress[coin_name]['current_model'] = 'SVR'
+        st.session_state.training_progress[coin_name]['message'] = 'Training SVR...'
+        st.session_state.last_update = time.time()
         models['SVR'] = train_svr(X_train, y_train)
         st.session_state.training_progress[coin_name]['progress'] = 50
+        st.session_state.training_progress[coin_name]['message'] = 'SVR completed'
+        st.session_state.last_update = time.time()
         
         # Train XGBoost
         st.session_state.training_progress[coin_name]['current_model'] = 'XGBoost'
+        st.session_state.training_progress[coin_name]['message'] = 'Training XGBoost...'
+        st.session_state.last_update = time.time()
         models['XGBoost'] = train_xgboost(X_train, y_train)
         st.session_state.training_progress[coin_name]['progress'] = 75
+        st.session_state.training_progress[coin_name]['message'] = 'XGBoost completed'
+        st.session_state.last_update = time.time()
         
         # Train LSTM
         st.session_state.training_progress[coin_name]['current_model'] = 'LSTM'
+        st.session_state.training_progress[coin_name]['message'] = 'Training LSTM (this may take a few minutes)...'
+        st.session_state.last_update = time.time()
         models['LSTM'] = train_lstm(X_train, y_train)
         st.session_state.training_progress[coin_name]['progress'] = 100
+        st.session_state.training_progress[coin_name]['message'] = 'LSTM completed'
+        st.session_state.last_update = time.time()
         
         # Save models
         saved_paths = {name: save_model(model, name, coin_index + 1, X_train.shape[1]) 
@@ -229,9 +244,12 @@ def train_models_for_coin(selected_data, coin_index):
         
         st.session_state.training_progress[coin_name]['status'] = 'Completed'
         st.session_state.model_paths.update(saved_paths)
+        st.session_state.last_update = time.time()
         
     except Exception as e:
         st.session_state.training_progress[coin_name]['status'] = f'Failed: {str(e)}'
+        st.session_state.training_progress[coin_name]['message'] = f'Error: {str(e)}'
+        st.session_state.last_update = time.time()
         raise e
 
 def train_all_models_background(selected_data):
@@ -241,13 +259,15 @@ def train_all_models_background(selected_data):
     
     def training_task():
         try:
-            for coin_idx in range(selected_data.shape[1]):
+            for coin_idx in range(min(4, selected_data.shape[1])):  # Only train first 4 coins
                 train_models_for_coin(selected_data, coin_idx)
             st.session_state.models_trained = True
+            st.session_state.last_update = time.time()
         except Exception as e:
             st.error(f"Training failed: {str(e)}")
+            st.session_state.last_update = time.time()
     
-    st.session_state.training_thread = threading.Thread(target=training_task)
+    st.session_state.training_thread = threading.Thread(target=training_task, daemon=True)
     st.session_state.training_thread.start()
 
 def check_training_status():
@@ -255,22 +275,46 @@ def check_training_status():
     if not st.session_state.training_progress:
         return False
     
-    st.subheader("Training Progress")
-    for coin_name, progress in st.session_state.training_progress.items():
-        if progress['status'] == 'Completed':
-            st.success(f"{coin_name}: Training completed successfully!")
-        elif progress['status'].startswith('Failed'):
-            st.error(f"{coin_name}: {progress['status']}")
-        else:
-            st.info(f"{coin_name}: {progress['status']} - {progress['current_model']}")
-            st.progress(progress['progress'] / 100)
+    # Force rerun if we haven't updated in a while
+    if time.time() - st.session_state.last_update > 5:  # 5 seconds since last update
+        st.rerun()
     
-    # Check if all training is complete
-    all_completed = all(p['status'] == 'Completed' for p in st.session_state.training_progress.values())
-    if all_completed:
+    st.subheader("Training Progress")
+    
+    all_completed = True
+    any_failed = False
+    
+    for coin_name, progress in st.session_state.training_progress.items():
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if progress['status'] == 'Completed':
+                st.success("✓")
+            elif progress['status'].startswith('Failed'):
+                st.error("✗")
+                any_failed = True
+            else:
+                st.info("⌛")
+                all_completed = False
+        
+        with col2:
+            st.write(f"**{coin_name}**")
+            if progress['current_model']:
+                st.write(f"Current: {progress['current_model']}")
+            if progress['message']:
+                st.write(progress['message'])
+            if progress['status'] not in ['Completed', 'Failed']:
+                st.progress(progress['progress'] / 100)
+    
+    if all_completed and not any_failed:
         st.session_state.models_trained = True
         st.balloons()
         return True
+    
+    # Auto-refresh every 5 seconds if training is still in progress
+    if not all_completed:
+        time.sleep(5)
+        st.rerun()
+    
     return False
 
 # Fetch cryptocurrency data
@@ -1303,6 +1347,7 @@ def main():
         if prediction_option == "Dataset":
             display_selected_coins()
             plot_coin_scatter()
+    
         elif prediction_option == "Training":
             st.header("Model Training")
             
@@ -1311,7 +1356,8 @@ def main():
                     st.success("All models trained successfully!")
                 else:
                     st.warning("Training in progress...")
-                    st.button("Refresh Status")
+                    if st.button("Refresh Status"):
+                        st.rerun()
             else:
                 if st.button("Train All Models"):
                     with st.spinner("Starting model training in background..."):
@@ -1320,6 +1366,7 @@ def main():
                 
                 if st.session_state.models_trained:
                     st.info("Models are already trained and ready for predictions")
+        
         elif prediction_option == "Training Model Metrics":
             coins = st.multiselect("Select coins:", selected_data.columns)
             model = st.selectbox("Select model:", ['all', 'Gradient Boosting', 'SVR', 'XGBoost', 'LSTM'])
@@ -1357,6 +1404,14 @@ def main():
         crypto = st.text_input("Cryptocurrency:", "Bitcoin")
         source = st.selectbox("News source:", ['all', 'Cryptoslate', 'CoinDesk'])
         get_top_crypto_news(crypto, news_source=source)
+
+if __name__ == "__main__":
+    main()
+
+
+
+    
+        # [Rest of your prediction options remain the same...]
 
 if __name__ == "__main__":
     main()
