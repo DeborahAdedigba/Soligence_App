@@ -3,13 +3,13 @@ numpy
 streamlit
 plotly
 ta
-scikit-learn
-xgboost
+scikit-learn==1.2.2
+xgboost== 1.7.5
 keras
-tensorflow
+tensorflow==2.12.0
 mplfinance
 feedparser
-joblib
+joblib== 1.2.0
 matplotlib
 yfinance
 keras
