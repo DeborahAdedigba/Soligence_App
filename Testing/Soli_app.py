@@ -523,19 +523,29 @@ def plot_coin_scatter():
 from training import train_all_models
 
 # Modify your model evaluation function to handle cases where models don't exist
-def evaluate_models_selected_coin(selected_data, coin_index, chosen_model='all'):
-    coin_name = selected_data.columns[coin_index]
+def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
+    """Evaluate models for a specific coin in the dataset"""
+    if data.empty:
+        st.error("No data available for evaluation.")
+        return
+    
+    coin_name = data.columns[coin_index]
     model_dir = f"Model_SELECTED_COIN_{coin_index+1}"
     
     # Check if models exist, if not train them
     if not os.path.exists(model_dir):
         st.warning(f"No trained models found for {coin_name}. Training models now...")
-        train_all_models(selected_data, coin_index)
+        train_all_models(data, coin_index)
     
-    # Rest of your evaluation code...
+    # Prepare data with lag features
+    data_prep = data.copy()
+    for lag in range(1, 4):
+        data_prep[f'{coin_name}_lag_{lag}'] = data_prep[coin_name].shift(lag)
+    data_prep.dropna(inplace=True)
+
     features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
-    X = selected_data[features]
-    y = selected_data[coin_name]
+    X = data_prep[features]
+    y = data_prep[coin_name]
     
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
@@ -546,7 +556,7 @@ def evaluate_models_selected_coin(selected_data, coin_index, chosen_model='all')
         'LSTM': None
     }
     
-    # Load models
+    # Load models with error handling
     try:
         models['GRADIENT BOOSTING'] = joblib.load(f"{model_dir}/gradient_boosting_model.pkl")
         models['SVR'] = joblib.load(f"{model_dir}/svr_model.pkl")
@@ -557,8 +567,6 @@ def evaluate_models_selected_coin(selected_data, coin_index, chosen_model='all')
         return
     
     # Rest of your evaluation logic...
-
-    
     if chosen_model.lower() == 'all':
         chosen_models = models.keys()
     else:
@@ -566,39 +574,41 @@ def evaluate_models_selected_coin(selected_data, coin_index, chosen_model='all')
     
     eval_metrics = {}
     for model_name in chosen_models:
-        if model_name not in models:
-            st.warning(f"Model '{model_name}' not found.")
+        if model_name not in models or models[model_name] is None:
+            st.warning(f"Model '{model_name}' not available.")
             continue
             
-        model = models[model_name]
-        model_filename = f"Model_SELECTED_COIN_{coin_index+1}/{model_name.lower().replace(' ', '_')}_model.pkl"
+        if model_name == 'LSTM':
+            X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
+            predictions = models[model_name].predict(X_test_array).flatten()
+        else:
+            predictions = models[model_name].predict(X_test)
         
-        if os.path.exists(model_filename):
-            if model_name == 'LSTM':
-                model = load_model(model_filename.replace('.pkl', '.h5'))
-                X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
-                predictions = model.predict(X_test_array).flatten()
-            else:
-                model = joblib.load(model_filename)
-                predictions = model.predict(X_test)
-            
-            mae = mean_absolute_error(y_test, predictions)
-            mse = mean_squared_error(y_test, predictions)
-            rmse = np.sqrt(mse)
-            mape = np.mean(np.abs((y_test - predictions) / y_test)) * 100
-            r2 = r2_score(y_test, predictions)
-            
-            eval_metrics[model_name] = {'MAE': mae, 'MSE': mse, 'RMSE': rmse, 'MAPE': mape, 'R2': r2}
+        # Calculate metrics
+        mae = mean_absolute_error(y_test, predictions)
+        mse = mean_squared_error(y_test, predictions)
+        rmse = np.sqrt(mse)
+        mape = np.mean(np.abs((y_test - predictions) / y_test)) * 100
+        r2 = r2_score(y_test, predictions)
+        
+        eval_metrics[model_name] = {
+            'MAE': mae,
+            'MSE': mse,
+            'RMSE': rmse,
+            'MAPE': mape,
+            'R2': r2
+        }
     
+    # Display results
     st.subheader(f"Evaluation Metrics for {coin_name}:")
     for model_name, metrics in eval_metrics.items():
-        st.write(f"{model_name}:")
-        st.write(pd.DataFrame.from_dict(metrics, orient='index', columns=['Value']))
-        st.write('---')
+        st.write(f"### {model_name}")
+        st.dataframe(pd.DataFrame.from_dict(metrics, orient='index', columns=['Value']))
     
+    # Visual comparison
     if eval_metrics:
         metrics_df = pd.DataFrame.from_dict(eval_metrics, orient='index')
-        st.bar_chart(metrics_df[['MAE', 'MSE', 'RMSE']])
+        st.bar_chart(metrics_df[['MAE', 'RMSE']])
 
 def plot_actual_forecast_with_confidence(actual, predictions, periods, upper_bound, lower_bound):
     fig = go.Figure()
@@ -989,7 +999,7 @@ def main():
             
             for coin in coins:
                 coin_index = selected_data.columns.get_loc(coin)
-                evaluate_models_selected_coin(coin_index, model)
+                evaluate_models_selected_coin(selected_data, coin_index, model)  # Pass selected_data as first argument
         elif prediction_option == "Prediction Graphs":
             coin = st.selectbox("Select coin:", selected_data.columns)
             model = st.selectbox("Select model:", ['GBR', 'SVR', 'XGB', 'LSTM'])
