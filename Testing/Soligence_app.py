@@ -27,7 +27,7 @@ import tensorflow as tf
 import itertools
 from scipy.stats import gaussian_kde
 import tensorflow as tf
-from training import train_and_save_models
+from training import train_all_models
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 import streamlit as st
