@@ -38,12 +38,13 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # At the beginning of your main app
 import pkg_resources
 
+
 def check_versions():
     requirements = {
-        'scikit-learn': '1.2.2',
-        'xgboost': '1.7.5',
-        'tensorflow': '2.12.0',
-        'joblib': '1.2.0'
+        'scikit-learn': '1.6.1',
+        'xgboost': '3.0.0',
+        'tensorflow': '2.19.0',
+        'joblib': '1.4.2'
     }
     
     for pkg, req_version in requirements.items():
@@ -592,9 +593,7 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
         # Model loading with error recovery
         models = {}
         retrained = False
-        
         try:
-            # First attempt to load models
             models = {
                 'GRADIENT BOOSTING': joblib.load(f"{model_dir}/gradient_boosting_model.pkl"),
                 'SVR': joblib.load(f"{model_dir}/svr_model.pkl"),
@@ -602,8 +601,8 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
                 'LSTM': tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
             }
         except Exception as e:
-            st.warning(f"Model loading failed: {str(e)}")
-            st.warning("Attempting to retrain models with current environment...")
+            st.warning(f"Model loading failed due to version mismatch. Retraining models...")
+            models = train_all_models(selected_data, coin_index)
             
             with st.spinner("Retraining models..."):
                 train_all_models(data, coin_index)

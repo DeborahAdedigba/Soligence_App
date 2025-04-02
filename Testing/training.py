@@ -147,10 +147,15 @@ def save_model(model, model_name, coin_index=1):
     return model_path
 
 def train_all_models(selected_data, coin_index=0):
-    """Train all models for a specific coin with progress tracking"""
     try:
         X_train, X_test, y_train, y_test = prepare_data(selected_data, coin_index)
         
+        # Store these in session state for later access
+        st.session_state.X_train = X_train
+        st.session_state.X_test = X_test
+        st.session_state.y_train = y_train
+        st.session_state.y_test = y_test
+
         models = {
             'Gradient Boosting': train_gradient_boosting(X_train, y_train),
             'SVR': train_svr(X_train, y_train),
