@@ -62,6 +62,8 @@ ticker_symbols = ['BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 'XRP-G
 end_date = datetime.now()
 start_date = end_date - timedelta(days=4*365)  # four years ago
 
+
+
 # Try to load existing data or fetch fresh data
 data_file = "Cleaned_combined_crypto_data.csv"
 if os.path.exists(data_file):
@@ -78,6 +80,10 @@ else:
         combined_data.drop(['Dividends', 'Stock Splits'], axis=1, inplace=True)
         combined_data.to_csv(data_file)
 
+if not os.path.exists("trained_models"):
+    st.info("First-time setup: Training initial models...")
+    train_all_models(selected_data)
+    st.session_state.models_trained = True
 # Generate selected coins through PCA and clustering
 def generate_selected_data(data):
     pivoted_data = data.pivot(columns='Crypto', values='Close')
@@ -513,17 +519,20 @@ def plot_coin_scatter():
     fig.update_layout(height=800, width=1000, showlegend=False)
     st.plotly_chart(fig)
 
-def evaluate_models_selected_coin(coin_index, chosen_model='all'):
-    if selected_data.empty:
-        st.error("No selected coins data available.")
-        return
-    
+# Add this near your imports in the main app
+from training import train_all_models
+
+# Modify your model evaluation function to handle cases where models don't exist
+def evaluate_models_selected_coin(selected_data, coin_index, chosen_model='all'):
     coin_name = selected_data.columns[coin_index]
+    model_dir = f"Model_SELECTED_COIN_{coin_index+1}"
     
-    for lag in range(1, 4):
-        selected_data[f'{coin_name}_lag_{lag}'] = selected_data[coin_name].shift(lag)
+    # Check if models exist, if not train them
+    if not os.path.exists(model_dir):
+        st.warning(f"No trained models found for {coin_name}. Training models now...")
+        train_all_models(selected_data, coin_index)
     
-    selected_data.dropna(inplace=True)
+    # Rest of your evaluation code...
     features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
     X = selected_data[features]
     y = selected_data[coin_name]
@@ -531,11 +540,24 @@ def evaluate_models_selected_coin(coin_index, chosen_model='all'):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
     models = {
-        'GRADIENT BOOSTING': GradientBoostingRegressor(),
-        'SVR': SVR(),
-        'XGBOOST': XGBRegressor(),
-        'LSTM': Sequential([LSTM(units=50, input_shape=(X_train.shape[1], 1)), Dense(units=1)])
+        'GRADIENT BOOSTING': None,
+        'SVR': None,
+        'XGBOOST': None,
+        'LSTM': None
     }
+    
+    # Load models
+    try:
+        models['GRADIENT BOOSTING'] = joblib.load(f"{model_dir}/gradient_boosting_model.pkl")
+        models['SVR'] = joblib.load(f"{model_dir}/svr_model.pkl")
+        models['XGBOOST'] = joblib.load(f"{model_dir}/xgboost_model.pkl")
+        models['LSTM'] = tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
+    except Exception as e:
+        st.error(f"Error loading models: {str(e)}")
+        return
+    
+    # Rest of your evaluation logic...
+
     
     if chosen_model.lower() == 'all':
         chosen_models = models.keys()
@@ -944,6 +966,23 @@ def main():
         if prediction_option == "Dataset":
             display_selected_coins()
             plot_coin_scatter()
+        # In your predictions section
+        elif prediction_option == "Training":
+            st.header("Model Training")
+            
+            if st.button("Train All Models"):
+                with st.spinner("Training models (this may take several minutes)..."):
+                    try:
+                        train_all_models(selected_data)
+                        st.success("Models trained successfully!")
+                        st.session_state.models_trained = True
+                    except Exception as e:
+                        st.error(f"Training failed: {str(e)}")
+            
+            if st.session_state.models_trained:
+                st.info("Models are trained and ready for predictions")
+            else:
+                st.warning("Models need to be trained before making predictions")
         elif prediction_option == "Training Model Metrics":
             coins = st.multiselect("Select coins:", selected_data.columns)
             model = st.selectbox("Select model:", ['all', 'Gradient Boosting', 'SVR', 'XGBoost', 'LSTM'])
