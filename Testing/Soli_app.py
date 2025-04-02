@@ -160,7 +160,7 @@ def home_section():
     if st.button("Get Started"):
         st.write("Let's explore the world of cryptocurrency trading together!")
         st.image('https://img.freepik.com/free-vector/gradient-stock-market-concept_23-2149166910.jpg', 
-                use_column_width=True)
+                use_container_width=True)
         
         st.write("News and Updates:")
         st.info("Stay tuned for the latest updates and trends in the cryptocurrency market!")
@@ -1073,7 +1073,7 @@ def main():
         if visualization_option == 'Home':
             st.title("Data Visualization")
             st.image('https://img.freepik.com/free-vector/gradient-stock-market-concept_23-2149166910.jpg', 
-                    use_column_width=True)
+                    use_container_width=True)
             st.write("Explore different visualizations to gain insights into cryptocurrency markets.")
         elif visualization_option == 'Price Comparison':
             vis_option = st.sidebar.radio("Compare:", ['Metrics', 'Coins'])
