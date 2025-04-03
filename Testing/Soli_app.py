@@ -383,9 +383,12 @@ def train_all_models_background(selected_data):
     
     logging.info("Starting model training in background")
     with threading.Lock():
-        st.session_state.training_started = True
-        st.session_state.models_trained = False
-    
+        # st.session_state.training_started = True
+        # st.session_state.models_trained = False
+        # When training is complete:
+        st.session_state.models_trained = True
+        st.session_state.training_started = False
+        
     def training_task():
         try:
             logging.info(f"Training models for {min(4, selected_data.shape[1])} coins")
@@ -1146,24 +1149,38 @@ def evaluate_and_plot_model(coin_index, model_choice, frequency, num_periods):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
     model_filename = f"trained_models/Model_SELECTED_COIN_{coin_index+1}/"
-    if model_choice == 'LSTM':
-        model_filename += "lstm_model.keras"
-        if os.path.exists(model_filename):
-            model = load_model(model_filename)
-            X_array = X.to_numpy().reshape(X.shape[0], X.shape[1], 1)
-            predictions = model.predict(X_array[-num_periods:]).flatten()
-        else:
-            st.error("LSTM model not found.")
-            return
-    else:
-        model_filename += f"{model_choice.lower()}_model.pkl"
-        if os.path.exists(model_filename):
-            model = joblib.load(model_filename)
-            predictions = model.predict(X[-num_periods:])
-        else:
-            st.error(f"{model_choice} model not found.")
-            return
     
+    # Create a mapping between display names and actual filenames
+    model_mapping = {
+        'Gradient Boosting': 'gradient_boosting_model.pkl',
+        'SVR': 'svr_model.pkl',
+        'XGBOOST': 'xgboost_model.pkl',
+        'LSTM': 'lstm_model.keras'
+    }
+    
+    if model_choice in model_mapping:
+        model_filename += model_mapping[model_choice]
+        
+        if model_choice == 'LSTM':
+            if os.path.exists(model_filename):
+                model = load_model(model_filename)
+                X_array = X.to_numpy().reshape(X.shape[0], X.shape[1], 1)
+                predictions = model.predict(X_array[-num_periods:]).flatten()
+            else:
+                st.error("LSTM model not found.")
+                return
+        else:
+            if os.path.exists(model_filename):
+                model = joblib.load(model_filename)
+                predictions = model.predict(X[-num_periods:])
+            else:
+                st.error(f"{model_choice} model not found at {model_filename}")
+                return
+    else:
+        st.error("Invalid model selection.")
+        return
+    
+    # .
     last_date = selected_data.index[-1]
     if frequency == 'daily':
         periods = pd.date_range(start=last_date, periods=num_periods, freq='D')
@@ -1592,21 +1609,30 @@ def main():
         elif prediction_option == "Training":
             st.header("Model Training")
             
-            if st.session_state.training_started:
+            # Check if training is complete
+            if st.session_state.get('models_trained', False):
+                st.success("All models trained successfully!")
+            # Check if training is in progress
+            elif st.session_state.get('training_started', False):
                 if check_training_status():
                     st.success("All models trained successfully!")
+                    st.session_state.models_trained = True
+                    st.session_state.training_started = False
+                    st.rerun()  # Refresh to update the state
                 else:
                     st.warning("Training in progress...")
                     if st.button("Refresh Status"):
                         st.rerun()
+            # Initial state - no training started yet
             else:
-                if st.button("Train All Models"):
-                    with st.spinner("Starting model training in background..."):
-                        train_all_models_background(selected_data)
-                        st.rerun()
-                
-                if st.session_state.models_trained:
+                if st.session_state.get('models_trained', False):
                     st.info("Models are already trained and ready for predictions")
+                else:
+                    if st.button("Train All Models"):
+                        with st.spinner("Starting model training in background..."):
+                            st.session_state.training_started = True
+                            train_all_models_background(selected_data)
+                            st.rerun()
         
         elif prediction_option == "Training Model Metrics":
             coins = st.multiselect("Select coins:", selected_data.columns)
