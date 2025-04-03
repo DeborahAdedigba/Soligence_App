@@ -1774,6 +1774,7 @@ def main():
                         args=(selected_data,)
                     )
                     thread.start()
+                    st.success(f"Training Completed")
                     st.rerun()
         
         elif prediction_option == "Training Model Metrics":
