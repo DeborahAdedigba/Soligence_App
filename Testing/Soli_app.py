@@ -1960,7 +1960,7 @@ def main():
                 determine_best_time_to_trade_future(coin, days)
             else:
                 # model = st.selectbox("Select model:", ["SVR", "GBR", "XGBoost", "LSTM"])
-                # determine_best_time_to_trade(coin, days, model)
+                determine_best_time_to_trade(coin, days, model)
                 create_prediction_interface(selected_data) 
         elif prediction_option == "Predict coin by Profit":
             model_type = st.selectbox("Select model:", ['Gradient_Boosting', 'SVR', 'Xgboost', 'LSTM'])
