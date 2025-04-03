@@ -1953,10 +1953,10 @@ def main():
                 evaluate_and_plot_model(coin_index, model, frequency, periods)
         elif prediction_option == "Buy and Sell Prediction":
             strategy = st.sidebar.radio("Strategy:", ["Moving Averages", "Models"])
-            coin = st.selectbox("Select coin:", selected_data.columns)
-            days = st.number_input("Days ahead:", min_value=1, value=10)
             
             if strategy == "Moving Averages":
+                coin = st.selectbox("Select coin:", selected_data.columns)
+                days = st.number_input("Days ahead:", min_value=1, value=10)
                 determine_best_time_to_trade_future(coin, days)
             else:
                 # model = st.selectbox("Select model:", ["SVR", "GBR", "XGBoost", "LSTM"])
