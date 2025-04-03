@@ -1563,25 +1563,69 @@ def determine_best_time_to_trade(chosen_coin, num_days, model_type):
             action = "Buy" if future_price > current_price else "Sell"
             confidence = "Strong" if abs(percentage_change) > 5 else "Moderate" if abs(percentage_change) > 2 else "Weak"
             
-            # Display results with more context
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Current Price", f"${current_price:.4f}")
-            with col2:
-                st.metric("Forecasted Price", f"${future_price:.4f}", 
-                         delta=f"{price_change:.4f} ({percentage_change:.2f}%)")
-            with col3:
-                st.metric("Forecast Date", future_date.strftime('%Y-%m-%d'), 
-                         delta=f"{num_days} days ahead")
+            # Create a formatted results card
+            st.markdown("### Prediction Results")
             
-            # Color-coded recommendation with confidence level
-            if action == "Buy":
-                st.success(f"Recommendation ({model_type}): {action} with {confidence} confidence")
-            else:
-                st.warning(f"Recommendation ({model_type}): {action} with {confidence} confidence")
-                
-            # Add supporting context
-            st.info(f"This prediction is based on {model_type} model analysis of {chosen_coin}'s historical patterns")
+            # Style for the results box
+            st.markdown("""
+            <style>
+            .result-box {
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+                background-color: #f0f2f6;
+                border-left: 5px solid #4e8cff;
+            }
+            .metric-label {
+                font-size: 14px;
+                color: #555;
+                font-weight: bold;
+            }
+            .metric-value {
+                font-size: 24px;
+                font-weight: bold;
+                margin-bottom: 5px;
+            }
+            .price-up {
+                color: #10b981;
+            }
+            .price-down {
+                color: #ef4444;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Format the results in a nice box
+            result_html = f"""
+            <div class="result-box">
+                <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                    <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                        <div class="metric-label">Current Price</div>
+                        <div class="metric-value">${current_price:.4f}</div>
+                    </div>
+                    <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                        <div class="metric-label">Predicted Price</div>
+                        <div class="metric-value {'price-up' if price_change > 0 else 'price-down'}">${future_price:.4f}</div>
+                        <div>{'▲' if price_change > 0 else '▼'} {abs(percentage_change):.2f}%</div>
+                    </div>
+                    <div style="min-width: 150px; margin-bottom: 15px;">
+                        <div class="metric-label">Forecast Date</div>
+                        <div class="metric-value">{future_date.strftime('%Y-%m-%d')}</div>
+                        <div>({num_days} days ahead)</div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                    <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">
+                        Recommendation: <span style="color: {'#10b981' if action == 'Buy' else '#ef4444'}">{action}</span> with {confidence} confidence
+                    </div>
+                    <div style="font-style: italic; color: #666;">
+                        Based on {model_type} model analysis of {chosen_coin}'s historical patterns
+                    </div>
+                </div>
+            </div>
+            """
+            
+            st.markdown(result_html, unsafe_allow_html=True)
             
             # Display uncertainty disclaimer
             st.caption("Note: This forecast is an estimate and market conditions can change unexpectedly.")
@@ -1595,6 +1639,55 @@ def determine_best_time_to_trade(chosen_coin, num_days, model_type):
         st.error(f"Error in trade determination: {str(e)}")
         logging.error(f"Error in determine_best_time_to_trade: {str(e)}", exc_info=True)
         return None
+
+# Add this function to create the prediction UI with button
+def create_prediction_interface():
+    st.markdown("## Cryptocurrency Price Prediction")
+    
+    # Create form for input parameters
+    with st.form(key="prediction_form"):
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # Get available coins from selected_data if available
+            available_coins = []
+            if 'selected_data' in globals() and selected_data is not None and not selected_data.empty:
+                # Assuming first few columns are coin names
+                available_coins = selected_data.columns[:4].tolist()
+            
+            if available_coins:
+                chosen_coin = st.selectbox("Select Cryptocurrency", options=available_coins)
+            else:
+                chosen_coin = st.text_input("Enter Cryptocurrency Symbol")
+        
+        with col2:
+            model_type = st.selectbox(
+                "Select Model Type",
+                options=["SVR", "GBR", "XGBoost", "LSTM"],
+                help="Choose the prediction model to use"
+            )
+        
+        with col3:
+            num_days = st.slider(
+                "Prediction Days Ahead",
+                min_value=1,
+                max_value=30,
+                value=7,
+                help="Number of days to forecast into the future"
+            )
+        
+        # Add predict button
+        predict_button = st.form_submit_button(
+            label="Predict Price",
+            use_container_width=True,
+            type="primary"
+        )
+        
+        if predict_button:
+            # Show a spinner while processing
+            with st.spinner("Analyzing market data..."):
+                # Call the prediction function
+                determine_best_time_to_trade(chosen_coin, num_days, model_type)
     
 # getting best coins   
 def find_best_coins(model_type, desired_profit, num_days):
