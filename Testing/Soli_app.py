@@ -342,11 +342,14 @@ def train_models_for_coin(selected_data, coin_index):
 def train_lstm(X_train, y_train):
     """Train LSTM model with simplified architecture"""
     logging.info("Initializing LSTM model")
-    model = Sequential([
-        LSTM(32, input_shape=(X_train.shape[1], 1)),
-        Dense(16, activation='relu'),
-        Dense(1)
-    ])
+    
+    # Clear any existing session
+    tf.keras.backend.clear_session()
+    
+    model = tf.keras.Sequential()
+    model.add(tf.keras.layers.LSTM(32, input_shape=(X_train.shape[1], 1)))
+    model.add(tf.keras.layers.Dense(16, activation='relu'))
+    model.add(tf.keras.layers.Dense(1))
     
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
@@ -354,7 +357,7 @@ def train_lstm(X_train, y_train):
         metrics=['mae']
     )
     
-    early_stop = EarlyStopping(
+    early_stop = tf.keras.callbacks.EarlyStopping(
         monitor='val_loss',
         patience=5,
         restore_best_weights=True
@@ -369,7 +372,7 @@ def train_lstm(X_train, y_train):
         batch_size=32,
         validation_split=0.2,
         callbacks=[early_stop],
-        verbose=1  # Enable Keras verbose output
+        verbose=1
     )
     logging.info("Completed LSTM training")
     
@@ -399,7 +402,7 @@ def train_all_models_background(selected_data):
         logging.info(f"Training models for {coin_name}")
         
         models = [
-            ('Linear Regression', train_lstm),
+            ('Linear Regression', train_linear_regression),
             ('Gradient Boosting', train_gradient_boosting),
             ('SVR', train_svr),
             ('LSTM', train_lstm)
