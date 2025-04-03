@@ -1423,6 +1423,9 @@ def apply_ma_trading_strategy(chosen_coin):
         logging.error(f"Error in apply_ma_trading_strategy: {str(e)}", exc_info=True)
         return None
 
+from datetime import datetime, timedelta
+import pandas as pd
+from ta.trend import SMAIndicator
 
 def forecast_price(selected_data, chosen_coin, num_days):
     future_date = datetime.now() + timedelta(days=num_days)
