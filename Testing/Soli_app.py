@@ -1527,9 +1527,16 @@ def determine_best_time_to_trade_future(chosen_coin, num_days):
     
     return selected_data
 
-def forecast_price_with_model(chosen_coin, num_days, model_type):
+import streamlit as st
+import os
+import joblib
+import logging
+import numpy as np
+from datetime import datetime, timedelta
+from tensorflow.keras.models import load_model
+
+def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
     try:
-        # Get the coin index
         if chosen_coin not in selected_data.columns:
             st.error(f"Selected coin '{chosen_coin}' not found in data")
             return None, None
@@ -1537,7 +1544,6 @@ def forecast_price_with_model(chosen_coin, num_days, model_type):
         coin_index = selected_data.columns.get_loc(chosen_coin)
         model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index+1}"
         
-        # Determine model file path
         model_mapping = {
             "SVR": "svr_model.pkl",
             "GBR": "gradient_boosting_model.pkl",
@@ -1553,31 +1559,24 @@ def forecast_price_with_model(chosen_coin, num_days, model_type):
         
         if not os.path.exists(model_filename):
             st.error(f"Model not found: {model_filename}")
-            st.info(f"Please ensure {model_type} model is trained for {chosen_coin}")
             return None, None
         
-        # Create lag features if they don't exist
-        features = []
-        # Create a copy to avoid SettingWithCopyWarning
-        data_copy = selected_data.copy()
+        features = [f'{chosen_coin}_lag_{lag}' for lag in range(1, 4)]
         
+        data_copy = selected_data.copy()
         for lag in range(1, 4):
             lag_col = f'{chosen_coin}_lag_{lag}'
             if lag_col not in data_copy.columns:
                 data_copy[lag_col] = data_copy[chosen_coin].shift(lag)
-            features.append(lag_col)
         
-        # Remove any rows with NaN values from shifting
         selected_data_clean = data_copy.dropna(subset=features)
         
         if len(selected_data_clean) == 0:
             st.error("Not enough historical data to generate forecast")
             return None, None
-            
-        # Get the most recent data point
+        
         X_array = selected_data_clean[features].to_numpy()
         
-        # Load and use the appropriate model
         with st.spinner(f"Predicting future price with {model_type} model..."):
             if model_type == "LSTM":
                 try:
@@ -1597,145 +1596,26 @@ def forecast_price_with_model(chosen_coin, num_days, model_type):
                     return None, None
         
         future_date = datetime.now() + timedelta(days=num_days)
-        
-        # Log successful prediction
-        logging.info(f"Successfully predicted price for {chosen_coin} using {model_type}: {future_price:.4f}")
-        
         return future_price, future_date
-        
+    
     except Exception as e:
         st.error(f"Error in price forecasting: {str(e)}")
-        logging.error(f"Error in forecast_price_with_model: {str(e)}", exc_info=True)
         return None, None
 
-def determine_best_time_to_trade(chosen_coin, num_days, model_type):
-    try:
-        # Check if selected_coin is valid
-        if chosen_coin is None or chosen_coin == "":
-            st.error("Please select a coin to analyze")
-            return None
-            
-        selected_data = apply_ma_trading_strategy(chosen_coin)
-        if selected_data is None:
-            st.error("Could not load trading data")
-            return None
-        
-        if selected_data.empty:
-            st.error(f"No data available for {chosen_coin}")
-            return None
-            
-        future_price, future_date = forecast_price_with_model(chosen_coin, num_days, model_type)
-        
-        if future_price is not None:
-            current_price = selected_data['Close'].iloc[-1]
-            price_change = future_price - current_price
-            percentage_change = (price_change / current_price) * 100
-            
-            action = "Buy" if future_price > current_price else "Sell"
-            confidence = "Strong" if abs(percentage_change) > 5 else "Moderate" if abs(percentage_change) > 2 else "Weak"
-            
-            # Create a formatted results card
-            st.markdown("### Prediction Results")
-            
-            # Style for the results box
-            st.markdown("""
-            <style>
-            .result-box {
-                padding: 20px;
-                border-radius: 10px;
-                margin-bottom: 20px;
-                background-color: #f0f2f6;
-                border-left: 5px solid #4e8cff;
-            }
-            .metric-label {
-                font-size: 14px;
-                color: #555;
-                font-weight: bold;
-            }
-            .metric-value {
-                font-size: 24px;
-                font-weight: bold;
-                margin-bottom: 5px;
-            }
-            .price-up {
-                color: #10b981;
-            }
-            .price-down {
-                color: #ef4444;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-            
-            # Format the results in a nice box
-            result_html = f"""
-            <div class="result-box">
-                <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
-                    <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
-                        <div class="metric-label">Current Price</div>
-                        <div class="metric-value">${current_price:.4f}</div>
-                    </div>
-                    <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
-                        <div class="metric-label">Predicted Price</div>
-                        <div class="metric-value {'price-up' if price_change > 0 else 'price-down'}">${future_price:.4f}</div>
-                        <div>{'▲' if price_change > 0 else '▼'} {abs(percentage_change):.2f}%</div>
-                    </div>
-                    <div style="min-width: 150px; margin-bottom: 15px;">
-                        <div class="metric-label">Forecast Date</div>
-                        <div class="metric-value">{future_date.strftime('%Y-%m-%d')}</div>
-                        <div>({num_days} days ahead)</div>
-                    </div>
-                </div>
-                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
-                    <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">
-                        Recommendation: <span style="color: {'#10b981' if action == 'Buy' else '#ef4444'}">{action}</span> with {confidence} confidence
-                    </div>
-                    <div style="font-style: italic; color: #666;">
-                        Based on {model_type} model analysis of {chosen_coin}'s historical patterns
-                    </div>
-                </div>
-            </div>
-            """
-            
-            st.markdown(result_html, unsafe_allow_html=True)
-            
-            # Display uncertainty disclaimer
-            st.caption("Note: This forecast is an estimate and market conditions can change unexpectedly.")
-            
-            # Log the recommendation
-            logging.info(f"Trading recommendation for {chosen_coin}: {action} with {confidence} confidence")
-            
-        return selected_data
-        
-    except Exception as e:
-        st.error(f"Error in trade determination: {str(e)}")
-        logging.error(f"Error in determine_best_time_to_trade: {str(e)}", exc_info=True)
-        return None
-
-# Add this function to create the prediction UI with button
-def create_prediction_interface():
+def create_prediction_interface(selected_data):
     st.markdown("## Cryptocurrency Price Prediction")
     
-    # Create form for input parameters
     with st.form(key="prediction_form"):
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            # Get available coins from selected_data if available
-            available_coins = []
-            if 'selected_data' in globals() and selected_data is not None and not selected_data.empty:
-                # Assuming first few columns are coin names
-                available_coins = selected_data.columns[:4].tolist()
-            
-            if available_coins:
-                chosen_coin = st.selectbox("Select Cryptocurrency", options=available_coins)
-            else:
-                chosen_coin = st.text_input("Enter Cryptocurrency Symbol")
+            available_coins = selected_data.columns[:4].tolist() if not selected_data.empty else []
+            chosen_coin = st.selectbox("Select Cryptocurrency", options=available_coins)
         
         with col2:
             model_type = st.selectbox(
                 "Select Model Type",
-                options=["SVR", "GBR", "XGBoost", "LSTM"],
-                help="Choose the prediction model to use"
+                options=["SVR", "GBR", "XGBoost", "LSTM"]
             )
         
         with col3:
@@ -1743,22 +1623,17 @@ def create_prediction_interface():
                 "Prediction Days Ahead",
                 min_value=1,
                 max_value=30,
-                value=7,
-                help="Number of days to forecast into the future"
+                value=7
             )
         
-        # Add predict button
-        predict_button = st.form_submit_button(
-            label="Predict Price",
-            use_container_width=True,
-            type="primary"
-        )
+        predict_button = st.form_submit_button("Predict Price")
         
         if predict_button:
-            # Show a spinner while processing
             with st.spinner("Analyzing market data..."):
-                # Call the prediction function
-                determine_best_time_to_trade(chosen_coin, num_days, model_type)
+                future_price, future_date = forecast_price_with_model(chosen_coin, num_days, model_type, selected_data)
+                if future_price:
+                    st.success(f"Predicted price for {chosen_coin} on {future_date.strftime('%Y-%m-%d')}: ${future_price:.4f}")
+
     
 # getting best coins   
 def find_best_coins(model_type, desired_profit, num_days):
@@ -2084,7 +1959,7 @@ def main():
             if strategy == "Moving Averages":
                 determine_best_time_to_trade_future(coin, days)
             else:
-                model = st.selectbox("Select model:", ["SVR", "GBR", "XGBoost", "LSTM"])
+                # model = st.selectbox("Select model:", ["SVR", "GBR", "XGBoost", "LSTM"])
                 # determine_best_time_to_trade(coin, days, model)
                 create_prediction_interface() 
         elif prediction_option == "Predict coin by Profit":
