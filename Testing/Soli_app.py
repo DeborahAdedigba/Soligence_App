@@ -1455,9 +1455,14 @@ def determine_best_time_to_trade_future(chosen_coin, num_days):
         st.write("Unable to forecast price.")
     
     return selected_data
+
 def forecast_price_with_model(chosen_coin, num_days, model_type):
     try:
         # Get the coin index
+        if chosen_coin not in selected_data.columns:
+            st.error(f"Selected coin '{chosen_coin}' not found in data")
+            return None, None
+            
         coin_index = selected_data.columns.get_loc(chosen_coin)
         model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index+1}"
         
@@ -1477,18 +1482,22 @@ def forecast_price_with_model(chosen_coin, num_days, model_type):
         
         if not os.path.exists(model_filename):
             st.error(f"Model not found: {model_filename}")
+            st.info(f"Please ensure {model_type} model is trained for {chosen_coin}")
             return None, None
         
         # Create lag features if they don't exist
         features = []
+        # Create a copy to avoid SettingWithCopyWarning
+        data_copy = selected_data.copy()
+        
         for lag in range(1, 4):
             lag_col = f'{chosen_coin}_lag_{lag}'
-            if lag_col not in selected_data.columns:
-                selected_data[lag_col] = selected_data[chosen_coin].shift(lag)
+            if lag_col not in data_copy.columns:
+                data_copy[lag_col] = data_copy[chosen_coin].shift(lag)
             features.append(lag_col)
         
         # Remove any rows with NaN values from shifting
-        selected_data_clean = selected_data.dropna(subset=features)
+        selected_data_clean = data_copy.dropna(subset=features)
         
         if len(selected_data_clean) == 0:
             st.error("Not enough historical data to generate forecast")
@@ -1497,16 +1506,30 @@ def forecast_price_with_model(chosen_coin, num_days, model_type):
         # Get the most recent data point
         X_array = selected_data_clean[features].to_numpy()
         
-        if model_type == "LSTM":
-            model = load_model(model_filename)
-            X_today = X_array[-1].reshape(1, len(features), 1)
-            future_price = model.predict(X_today)[0][0]
-        else:
-            model = joblib.load(model_filename)
-            X_today = X_array[-1].reshape(1, -1)
-            future_price = model.predict(X_today)[0]
+        # Load and use the appropriate model
+        with st.spinner(f"Predicting future price with {model_type} model..."):
+            if model_type == "LSTM":
+                try:
+                    model = load_model(model_filename)
+                    X_today = X_array[-1].reshape(1, len(features), 1)
+                    future_price = model.predict(X_today)[0][0]
+                except Exception as e:
+                    st.error(f"Error with LSTM prediction: {str(e)}")
+                    return None, None
+            else:
+                try:
+                    model = joblib.load(model_filename)
+                    X_today = X_array[-1].reshape(1, -1)
+                    future_price = model.predict(X_today)[0]
+                except Exception as e:
+                    st.error(f"Error with {model_type} prediction: {str(e)}")
+                    return None, None
         
         future_date = datetime.now() + timedelta(days=num_days)
+        
+        # Log successful prediction
+        logging.info(f"Successfully predicted price for {chosen_coin} using {model_type}: {future_price:.4f}")
+        
         return future_price, future_date
         
     except Exception as e:
@@ -1516,25 +1539,55 @@ def forecast_price_with_model(chosen_coin, num_days, model_type):
 
 def determine_best_time_to_trade(chosen_coin, num_days, model_type):
     try:
+        # Check if selected_coin is valid
+        if chosen_coin is None or chosen_coin == "":
+            st.error("Please select a coin to analyze")
+            return None
+            
         selected_data = apply_ma_trading_strategy(chosen_coin)
         if selected_data is None:
             st.error("Could not load trading data")
+            return None
+        
+        if selected_data.empty:
+            st.error(f"No data available for {chosen_coin}")
             return None
             
         future_price, future_date = forecast_price_with_model(chosen_coin, num_days, model_type)
         
         if future_price is not None:
             current_price = selected_data['Close'].iloc[-1]
+            price_change = future_price - current_price
+            percentage_change = (price_change / current_price) * 100
+            
             action = "Buy" if future_price > current_price else "Sell"
+            confidence = "Strong" if abs(percentage_change) > 5 else "Moderate" if abs(percentage_change) > 2 else "Weak"
             
-            col1, col2 = st.columns(2)
+            # Display results with more context
+            col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Current Price", f"{current_price:.4f}")
+                st.metric("Current Price", f"${current_price:.4f}")
             with col2:
-                st.metric("Forecasted Price", f"{future_price:.4f}")
+                st.metric("Forecasted Price", f"${future_price:.4f}", 
+                         delta=f"{price_change:.4f} ({percentage_change:.2f}%)")
+            with col3:
+                st.metric("Forecast Date", future_date.strftime('%Y-%m-%d'), 
+                         delta=f"{num_days} days ahead")
             
-            st.success(f"Recommendation ({model_type}): {action}")
-            st.info(f"Forecast for {future_date.strftime('%Y-%m-%d')}")
+            # Color-coded recommendation with confidence level
+            if action == "Buy":
+                st.success(f"Recommendation ({model_type}): {action} with {confidence} confidence")
+            else:
+                st.warning(f"Recommendation ({model_type}): {action} with {confidence} confidence")
+                
+            # Add supporting context
+            st.info(f"This prediction is based on {model_type} model analysis of {chosen_coin}'s historical patterns")
+            
+            # Display uncertainty disclaimer
+            st.caption("Note: This forecast is an estimate and market conditions can change unexpectedly.")
+            
+            # Log the recommendation
+            logging.info(f"Trading recommendation for {chosen_coin}: {action} with {confidence} confidence")
             
         return selected_data
         
@@ -1542,7 +1595,7 @@ def determine_best_time_to_trade(chosen_coin, num_days, model_type):
         st.error(f"Error in trade determination: {str(e)}")
         logging.error(f"Error in determine_best_time_to_trade: {str(e)}", exc_info=True)
         return None
-
+    
 # getting best coins   
 def find_best_coins(model_type, desired_profit, num_days):
     if selected_data.empty:
@@ -1636,11 +1689,11 @@ def find_best_coins(model_type, desired_profit, num_days):
         if profit >= desired_profit:
             st.success(f"Best performing coin: {coin}")
             exceeds_by = profit - desired_profit
-            st.write(f"Predicted profit: ${profit:.2f} (exceeds target by ${exceeds_by:.2f})")
+            st.write(f"Predicted profit: ${profit:.2f} (exceeds  target  by ${exceeds_by:.2f})")
         else:
             st.warning(f"Closest coin: {coin}")
             shortfall = desired_profit - profit
-            st.write(f"Predicted profit: ${profit:.2f} (below target by ${shortfall:.2f})")
+            st.write(f"Predicted profit: ${profit:.2f} (below  target  by ${shortfall:.2f})")
         
         st.write(f"Time period: {num_days} days")
         profit_percentage = (profit / desired_profit) * 100 if desired_profit != 0 else 0
