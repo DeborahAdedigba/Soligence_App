@@ -377,37 +377,96 @@ def train_lstm(X_train, y_train):
 
 # Modify the train_all_models_background function
 def train_all_models_background(selected_data):
-    """Train models for all coins in a background thread with proper initialization"""
-    # Initialize session state before starting
+    """Train models for all coins in a background thread with proper progress tracking"""
+    def initialize_session_state():
+        """Initialize all required session state variables"""
+        if 'training_started' not in st.session_state:
+            st.session_state.training_started = False
+        if 'models_trained' not in st.session_state:
+            st.session_state.models_trained = False
+        if 'training_progress' not in st.session_state:
+            st.session_state.training_progress = 0
+        if 'total_models' not in st.session_state:
+            st.session_state.total_models = min(4, selected_data.shape[1]) * 4  # 4 models per coin
+        if 'last_update' not in st.session_state:
+            st.session_state.last_update = time.time()
+        if 'training_error' not in st.session_state:
+            st.session_state.training_error = None
+
+    def train_models_for_coin(data, coin_idx):
+        """Train all models for a single coin with progress tracking"""
+        coin_name = data.columns[coin_idx]
+        logging.info(f"Training models for {coin_name}")
+        
+        models = [
+            ('Linear Regression', train_linear_regression),
+            ('Gradient Boosting', train_gradient_boosting),
+            ('SVR', train_svr),
+            ('LSTM', train_lstm)
+        ]
+        
+        for model_idx, (model_name, train_func) in enumerate(models, 1):
+            try:
+                logging.info(f"Training {model_name} for {coin_name}")
+                train_func(data, coin_idx)
+                
+                with threading.Lock():
+                    st.session_state.training_progress += 1
+                    st.session_state.last_update = time.time()
+                    
+                logging.info(f"Completed {model_name} for {coin_name}")
+                
+            except Exception as e:
+                error_msg = f"Failed training {model_name} for {coin_name}: {str(e)}"
+                logging.error(error_msg, exc_info=True)
+                with threading.Lock():
+                    st.session_state.training_error = error_msg
+                raise
+
+    # Initialize session state
     initialize_session_state()
     
-    logging.info("Starting model training in background")
+    # Reset state for new training
     with threading.Lock():
-        # st.session_state.training_started = True
-        # st.session_state.models_trained = False
-        # When training is complete:
-        st.session_state.models_trained = True
-        st.session_state.training_started = False
-        
+        st.session_state.training_started = True
+        st.session_state.models_trained = False
+        st.session_state.training_progress = 0
+        st.session_state.training_error = None
+        st.session_state.last_update = time.time()
+    
+    logging.info("Starting model training in background")
+    
     def training_task():
         try:
             logging.info(f"Training models for {min(4, selected_data.shape[1])} coins")
+            
+            # Train models for each coin
             for coin_idx in range(min(4, selected_data.shape[1])):
                 train_models_for_coin(selected_data, coin_idx)
             
+            # Mark training as complete
             with threading.Lock():
                 st.session_state.models_trained = True
+                st.session_state.training_started = False
                 st.session_state.last_update = time.time()
+                
             logging.info("All models trained successfully")
+            
         except Exception as e:
             error_msg = f"Training failed: {str(e)}"
             logging.error(error_msg, exc_info=True)
             with threading.Lock():
-                st.session_state.last_update = time.time()
-            raise
-    
-    st.session_state.training_thread = threading.Thread(target=training_task, daemon=True)
+                st.session_state.training_error = error_msg
+                st.session_state.training_started = False
+            return
+
+    # Start the background thread
+    st.session_state.training_thread = threading.Thread(
+        target=training_task,
+        daemon=True
+    )
     st.session_state.training_thread.start()
+    
     logging.info("Background training thread started")
 
 def check_training_status():
@@ -1426,12 +1485,8 @@ def find_best_coins(model_type, desired_profit, num_days):
                 model_path = model_file.replace('.pkl', '.keras')
                 if os.path.exists(model_path):
                     models[coin] = tf.keras.models.load_model(model_path)
-                    st.write(f"Successfully loaded LSTM model for {coin}")
-                else:
-                    st.write(f"LSTM model file not found at {model_path}")
             else:
                 models[coin] = joblib.load(model_file)
-                st.write(f"Loaded {model_type} model for {coin}")
     
     if not models:
         st.error("No models were loaded successfully.")
@@ -1444,23 +1499,14 @@ def find_best_coins(model_type, desired_profit, num_days):
     
     for coin, model in models.items():
         input_data = np.array([[num_days, 0, 0]])
-        st.write(f"\nProcessing {coin} with {model_type} model")
-        st.write(f"Input data shape before reshape: {input_data.shape}")
         
         if model_type == 'LSTM':
             input_data = input_data.reshape(1, input_data.shape[1], 1)
-            st.write(f"Reshaped input for LSTM: {input_data.shape}")
-            prediction = model.predict(input_data)
-            st.write(f"Raw prediction output: {prediction}")
-            st.write(f"Prediction shape: {prediction.shape}")
-            price_change = prediction[0][0]
+            price_change = model.predict(input_data)[0][0]
         else:
-            prediction = model.predict(input_data)
-            st.write(f"Raw prediction output: {prediction}")
-            price_change = prediction[0]
+            price_change = model.predict(input_data)[0]
         
         potential_profit = price_change * desired_profit
-        st.write(f"Calculated potential profit: {potential_profit}")
         
         if closest_coin is None or abs(potential_profit - desired_profit) < abs(closest_profit - desired_profit):
             next_best_coin = closest_coin
@@ -1609,30 +1655,51 @@ def main():
         elif prediction_option == "Training":
             st.header("Model Training")
             
+            # Initialize session state variables if they don't exist
+            if 'training_started' not in st.session_state:
+                st.session_state.training_started = False
+            if 'models_trained' not in st.session_state:
+                st.session_state.models_trained = False
+            if 'training_progress' not in st.session_state:
+                st.session_state.training_progress = 0
+            if 'total_models' not in st.session_state:
+                st.session_state.total_models = 4  # Update this with your actual number of models
+
             # Check if training is complete
-            if st.session_state.get('models_trained', False):
+            if st.session_state.models_trained:
                 st.success("All models trained successfully!")
+                if st.button("Reset Training Status"):
+                    st.session_state.training_started = False
+                    st.session_state.models_trained = False
+                    st.session_state.training_progress = 0
+                    st.rerun()
+            
             # Check if training is in progress
-            elif st.session_state.get('training_started', False):
-                if check_training_status():
-                    st.success("All models trained successfully!")
+            elif st.session_state.training_started:
+                # Show progress bar
+                progress = st.session_state.training_progress / st.session_state.total_models
+                st.progress(progress)
+                
+                if st.session_state.training_progress >= st.session_state.total_models:
                     st.session_state.models_trained = True
                     st.session_state.training_started = False
-                    st.rerun()  # Refresh to update the state
+                    st.rerun()
                 else:
-                    st.warning("Training in progress...")
+                    st.warning(f"Training in progress... ({st.session_state.training_progress}/{st.session_state.total_models} models completed)")
                     if st.button("Refresh Status"):
                         st.rerun()
+            
             # Initial state - no training started yet
             else:
-                if st.session_state.get('models_trained', False):
-                    st.info("Models are already trained and ready for predictions")
-                else:
-                    if st.button("Train All Models"):
-                        with st.spinner("Starting model training in background..."):
-                            st.session_state.training_started = True
-                            train_all_models_background(selected_data)
-                            st.rerun()
+                if st.button("Train All Models"):
+                    st.session_state.training_started = True
+                    st.session_state.training_progress = 0
+                    thread = threading.Thread(
+                        target=train_all_models_background,
+                        args=(selected_data,)
+                    )
+                    thread.start()
+                    st.rerun()
         
         elif prediction_option == "Training Model Metrics":
             coins = st.multiselect("Select coins:", selected_data.columns)
