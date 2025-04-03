@@ -1187,25 +1187,20 @@ def evaluate_and_plot_model(coin_index, model_choice, frequency, num_periods):
     plot_actual_forecast_with_confidence(y_test[-num_periods:], predictions, periods, upper_bound, lower_bound)
 
 def apply_ma_trading_strategy(chosen_coin):
-    """Apply moving average trading strategy with robust date handling"""
+    """Apply moving average trading strategy with error handling"""
     try:
-        # Create a copy of the filtered data
+        # Filter data for selected coin
         selected_data = combined_data[combined_data['Crypto'] == chosen_coin].copy()
-        
-        # Ensure we have valid closing prices
         selected_data.dropna(subset=['Close'], inplace=True)
         
-        # Convert index to datetime if it isn't already
+        # Handle datetime index safely
         if not isinstance(selected_data.index, pd.DatetimeIndex):
             selected_data.index = pd.to_datetime(selected_data.index)
-        
-        # Remove timezone if it exists
         if hasattr(selected_data.index, 'tz') and selected_data.index.tz is not None:
             selected_data.index = selected_data.index.tz_localize(None)
         
         # Calculate moving averages
-        ma_7 = 7
-        ma_14 = 14
+        ma_7, ma_14 = 7, 14
         selected_data[f'MA_{ma_7}'] = SMAIndicator(
             close=selected_data['Close'], 
             window=ma_7
@@ -1215,63 +1210,44 @@ def apply_ma_trading_strategy(chosen_coin):
             window=ma_14
         ).sma_indicator()
         
-        # Generate trading signals
+        # Generate signals
         selected_data['Buy_Signal'] = np.where(
-            selected_data[f'MA_{ma_7}'] > selected_data[f'MA_{ma_14}'].shift(1), 
-            1, 
-            0
+            selected_data[f'MA_{ma_7}'] > selected_data[f'MA_{ma_14}'].shift(1), 1, 0
         )
         selected_data['Sell_Signal'] = np.where(
-            selected_data[f'MA_{ma_7}'] < selected_data[f'MA_{ma_14}'].shift(1), 
-            -1, 
-            0
+            selected_data[f'MA_{ma_7}'] < selected_data[f'MA_{ma_14}'].shift(1), -1, 0
         )
         
-        # Create visualization
+        # Create figure
         fig = go.Figure()
         
-        # Price and MA lines
-        fig.add_trace(go.Scatter(
-            x=selected_data.index, 
-            y=selected_data['Close'], 
-            name='Close Price', 
-            line=dict(color='blue')
-        )
-        fig.add_trace(go.Scatter(
-            x=selected_data.index, 
-            y=selected_data[f'MA_{ma_7}'], 
-            name=f'{ma_7}-day MA', 
-            line=dict(color='green')
-        ))
-        fig.add_trace(go.Scatter(
-            x=selected_data.index, 
-            y=selected_data[f'MA_{ma_14}'], 
-            name=f'{ma_14}-day MA', 
-            line=dict(color='red')
-        ))
+        # Add traces with proper formatting
+        traces = [
+            ('Close Price', 'blue', None, selected_data['Close']),
+            (f'{ma_7}-day MA', 'green', None, selected_data[f'MA_{ma_7}']),
+            (f'{ma_14}-day MA', 'red', None, selected_data[f'MA_{ma_14}']),
+            ('Buy Signal', 'green', 'triangle-up', 
+             selected_data.loc[selected_data['Buy_Signal'] == 1, 'Close']),
+            ('Sell Signal', 'red', 'triangle-down',
+             selected_data.loc[selected_data['Sell_Signal'] == -1, 'Close'])
+        ]
         
-        # Trading signals
-        fig.add_trace(go.Scatter(
-            x=selected_data[selected_data['Buy_Signal'] == 1].index, 
-            y=selected_data[selected_data['Buy_Signal'] == 1]['Close'],
-            mode='markers', 
-            name='Buy Signal',
-            marker=dict(color='green', size=10, symbol='triangle-up')
-        ))
-        fig.add_trace(go.Scatter(
-            x=selected_data[selected_data['Sell_Signal'] == -1].index, 
-            y=selected_data[selected_data['Sell_Signal'] == -1]['Close'],
-            mode='markers', 
-            name='Sell Signal',
-            marker=dict(color='red', size=10, symbol='triangle-down')
-        ))
+        for name, color, symbol, y in traces:
+            fig.add_trace(go.Scatter(
+                x=selected_data.index,
+                y=y,
+                name=name,
+                mode='lines' if symbol is None else 'markers',
+                line=dict(color=color) if symbol is None else None,
+                marker=dict(color=color, size=10, symbol=symbol) if symbol else None
+            ))
         
-        # Current price reference line
+        # Add current price line
         current_price = selected_data['Close'].iloc[-1]
         fig.add_trace(go.Scatter(
-            x=[selected_data.index[0], selected_data.index[-1]], 
+            x=[selected_data.index[0], selected_data.index[-1]],
             y=[current_price, current_price],
-            mode='lines', 
+            mode='lines',
             name='Current Price',
             line=dict(color='gray', dash='dash')
         ))
@@ -1281,18 +1257,19 @@ def apply_ma_trading_strategy(chosen_coin):
             title=f'Trading Strategy for {chosen_coin}',
             xaxis_title='Date',
             yaxis_title='Price',
-            hovermode='x unified'
+            hovermode='x unified',
+            showlegend=True
         )
         
-        # Display chart and current price
+        # Display
         st.plotly_chart(fig, use_container_width=True)
-        st.metric(label="Current Price", value=f"{current_price:.2f}")
+        st.metric(label="Current Price", value=f"{current_price:.4f}")
         
         return selected_data
         
     except Exception as e:
-        st.error(f"Error generating trading strategy for {chosen_coin}: {str(e)}")
-        logging.error(f"Error in apply_ma_trading_strategy for {chosen_coin}: {str(e)}")
+        st.error(f"Error generating trading strategy: {str(e)}")
+        logging.error(f"Error in apply_ma_trading_strategy: {str(e)}", exc_info=True)
         return None
 
 
