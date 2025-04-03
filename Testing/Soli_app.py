@@ -97,7 +97,23 @@ def check_versions():
             logging.error(f"Version check failed for {pkg}: {str(e)}")
 
 # Training functions
-def prepare_data(selected_data, coin_index=0):
+# def prepare_data(selected_data, coin_index=0):
+#     """Prepare data with lag features"""
+#     selected_data = selected_data.copy()
+#     coin_name = selected_data.columns[coin_index]
+    
+#     for lag in range(1, 4):
+#         selected_data[f'{coin_name}_lag_{lag}'] = selected_data[coin_name].shift(lag)
+    
+#     selected_data.dropna(inplace=True)
+    
+#     features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
+#     X = selected_data[features]
+#     y = selected_data[coin_name]
+    
+#     return train_test_split(X, y, test_size=0.2, random_state=42)
+
+def prepare_data(selected_data, coin_index=0, for_lstm=False):
     """Prepare data with lag features"""
     selected_data = selected_data.copy()
     coin_name = selected_data.columns[coin_index]
@@ -110,6 +126,11 @@ def prepare_data(selected_data, coin_index=0):
     features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
     X = selected_data[features]
     y = selected_data[coin_name]
+    
+    # Convert to numpy arrays only if requested (for LSTM)
+    if for_lstm:
+        X = X.values.astype(np.float32)
+        y = y.values.astype(np.float32)
     
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -249,69 +270,69 @@ def train_models_for_coin(selected_data, coin_index):
             }
             st.session_state.last_update = time.time()
 
-        logging.info(f"Preparing data for {coin_name}")
-        X_train, X_test, y_train, y_test = prepare_data(selected_data, coin_index)
         models = {}
         
-        # Train Gradient Boosting
+        # ===== GRADIENT BOOSTING =====
         logging.info(f"Training Gradient Boosting for {coin_name}")
         with threading.Lock():
             st.session_state.training_progress[coin_name]['current_model'] = 'Gradient Boosting'
             st.session_state.training_progress[coin_name]['message'] = 'Training Gradient Boosting...'
             st.session_state.last_update = time.time()
         
+        # Prepare data (DataFrame format)
+        X_train, X_test, y_train, y_test = prepare_data(selected_data, coin_index, for_lstm=False)
         models['Gradient Boosting'] = train_gradient_boosting(X_train, y_train)
         
         with threading.Lock():
             st.session_state.training_progress[coin_name]['progress'] = 25
             st.session_state.training_progress[coin_name]['message'] = 'Gradient Boosting completed'
             st.session_state.last_update = time.time()
-        logging.info(f"Completed Gradient Boosting for {coin_name}")
         
-        # Train SVR
+        # ===== SVR =====
         logging.info(f"Training SVR for {coin_name}")
         with threading.Lock():
             st.session_state.training_progress[coin_name]['current_model'] = 'SVR'
             st.session_state.training_progress[coin_name]['message'] = 'Training SVR...'
             st.session_state.last_update = time.time()
         
+        # Reuse same DataFrame data
         models['SVR'] = train_svr(X_train, y_train)
         
         with threading.Lock():
             st.session_state.training_progress[coin_name]['progress'] = 50
             st.session_state.training_progress[coin_name]['message'] = 'SVR completed'
             st.session_state.last_update = time.time()
-        logging.info(f"Completed SVR for {coin_name}")
         
-        # Train XGBoost
+        # ===== XGBOOST =====
         logging.info(f"Training XGBoost for {coin_name}")
         with threading.Lock():
             st.session_state.training_progress[coin_name]['current_model'] = 'XGBoost'
             st.session_state.training_progress[coin_name]['message'] = 'Training XGBoost...'
             st.session_state.last_update = time.time()
         
+        # Reuse same DataFrame data
         models['XGBoost'] = train_xgboost(X_train, y_train)
         
         with threading.Lock():
             st.session_state.training_progress[coin_name]['progress'] = 75
             st.session_state.training_progress[coin_name]['message'] = 'XGBoost completed'
             st.session_state.last_update = time.time()
-        logging.info(f"Completed XGBoost for {coin_name}")
         
-        # Train LSTM
+        # ===== LSTM =====
         logging.info(f"Training LSTM for {coin_name} (this may take a while)")
         with threading.Lock():
             st.session_state.training_progress[coin_name]['current_model'] = 'LSTM'
             st.session_state.training_progress[coin_name]['message'] = 'Training LSTM (this may take a few minutes)...'
             st.session_state.last_update = time.time()
         
-        models['LSTM'] = train_lstm(X_train, y_train)
+        # Prepare fresh data in NumPy format
+        X_train_lstm, _, y_train_lstm, _ = prepare_data(selected_data, coin_index, for_lstm=True)
+        models['LSTM'] = train_lstm(X_train_lstm, y_train_lstm)
         
         with threading.Lock():
             st.session_state.training_progress[coin_name]['progress'] = 100
             st.session_state.training_progress[coin_name]['message'] = 'LSTM completed'
             st.session_state.last_update = time.time()
-        logging.info(f"Completed LSTM for {coin_name}")
         
         # Save models
         logging.info(f"Saving models for {coin_name}")
@@ -327,6 +348,7 @@ def train_models_for_coin(selected_data, coin_index):
             st.session_state.last_update = time.time()
         
         logging.info(f"Successfully completed training for {coin_name}")
+        return models
         
     except Exception as e:
         error_msg = f"Error training {coin_name}: {str(e)}"
@@ -337,34 +359,29 @@ def train_models_for_coin(selected_data, coin_index):
                 st.session_state.training_progress[coin_name]['message'] = error_msg
             st.session_state.last_update = time.time()
         raise e
-    
-# Modify the train_lstm function to add logging
+
+
 def train_lstm(X_train, y_train):
-    """Train LSTM model with simplified architecture"""
+    """Train LSTM model (requires numpy arrays)"""
     logging.info("Initializing LSTM model")
-    
-    # Clear any existing session
+
     tf.keras.backend.clear_session()
     
-    model = tf.keras.Sequential()
-    model.add(tf.keras.layers.LSTM(32, input_shape=(X_train.shape[1], 1)))
-    model.add(tf.keras.layers.Dense(16, activation='relu'))
-    model.add(tf.keras.layers.Dense(1))
+    model = tf.keras.Sequential([
+        tf.keras.layers.LSTM(32, input_shape=(X_train.shape[1], 1)),
+        tf.keras.layers.Dense(16, activation='relu'),
+        tf.keras.layers.Dense(1)
+    ])
     
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-        loss='mse',
-        metrics=['mae']
-    )
+    model.compile(optimizer='adam', loss='mse')
     
-    early_stop = tf.keras.callbacks.EarlyStopping(
-        monitor='val_loss',
-        patience=5,
-        restore_best_weights=True
-    )
+    # Ensure data is numpy array
+    X_array = np.array(X_train, dtype=np.float32).reshape(X_train.shape[0], X_train.shape[1], 1)
+    y_array = np.array(y_train, dtype=np.float32)
     
-    X_train_reshaped = X_train.to_numpy().reshape(X_train.shape[0], X_train.shape[1], 1)
-    
+    model.fit(X_array, y_array, epochs=50, batch_size=32, verbose=1)
+
+
     logging.info("Starting LSTM training")
     history = model.fit(
         X_train_reshaped, y_train,
@@ -377,6 +394,45 @@ def train_lstm(X_train, y_train):
     logging.info("Completed LSTM training")
     
     return model
+# Modify the train_lstm function to add logging
+# def train_lstm(X_train, y_train):
+#     """Train LSTM model with simplified architecture"""
+#     logging.info("Initializing LSTM model")
+    
+#     # Clear any existing session
+#     tf.keras.backend.clear_session()
+    
+#     model = tf.keras.Sequential()
+#     model.add(tf.keras.layers.LSTM(32, input_shape=(X_train.shape[1], 1)))
+#     model.add(tf.keras.layers.Dense(16, activation='relu'))
+#     model.add(tf.keras.layers.Dense(1))
+    
+#     model.compile(
+#         optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+#         loss='mse',
+#         metrics=['mae']
+#     )
+    
+#     early_stop = tf.keras.callbacks.EarlyStopping(
+#         monitor='val_loss',
+#         patience=5,
+#         restore_best_weights=True
+#     )
+    
+#     X_train_reshaped = X_train.to_numpy().reshape(X_train.shape[0], X_train.shape[1], 1)
+    
+#     logging.info("Starting LSTM training")
+#     history = model.fit(
+#         X_train_reshaped, y_train,
+#         epochs=50,
+#         batch_size=32,
+#         validation_split=0.2,
+#         callbacks=[early_stop],
+#         verbose=1
+#     )
+#     logging.info("Completed LSTM training")
+    
+#     return model
 
 # Modify the train_all_models_background function
 def train_all_models_background(selected_data):
@@ -395,36 +451,6 @@ def train_all_models_background(selected_data):
             st.session_state.last_update = time.time()
         if 'training_error' not in st.session_state:
             st.session_state.training_error = None
-
-    def train_models_for_coin(data, coin_idx):
-        """Train all models for a single coin with progress tracking"""
-        coin_name = data.columns[coin_idx]
-        logging.info(f"Training models for {coin_name}")
-        
-        models = [
-            ('Linear Regression', train_lstm),
-            ('Gradient Boosting', train_gradient_boosting),
-            ('SVR', train_svr),
-            ('LSTM', train_lstm)
-        ]
-        
-        for model_idx, (model_name, train_func) in enumerate(models, 1):
-            try:
-                logging.info(f"Training {model_name} for {coin_name}")
-                train_func(data, coin_idx)
-                
-                with threading.Lock():
-                    st.session_state.training_progress += 1
-                    st.session_state.last_update = time.time()
-                    
-                logging.info(f"Completed {model_name} for {coin_name}")
-                
-            except Exception as e:
-                error_msg = f"Failed training {model_name} for {coin_name}: {str(e)}"
-                logging.error(error_msg, exc_info=True)
-                with threading.Lock():
-                    st.session_state.training_error = error_msg
-                raise
 
     # Initialize session state
     initialize_session_state()
@@ -446,6 +472,11 @@ def train_all_models_background(selected_data):
             # Train models for each coin
             for coin_idx in range(min(4, selected_data.shape[1])):
                 train_models_for_coin(selected_data, coin_idx)
+                
+                # Update overall progress
+                with threading.Lock():
+                    st.session_state.training_progress += 4  # 4 models per coin
+                    st.session_state.last_update = time.time()
             
             # Mark training as complete
             with threading.Lock():
