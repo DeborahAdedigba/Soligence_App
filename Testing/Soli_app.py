@@ -1429,17 +1429,20 @@ def forecast_price(selected_data, chosen_coin, num_days):
     future_date = future_date.replace(tzinfo=None)
     
     last_date = selected_data.index[-1].to_pydatetime().replace(tzinfo=None)
+    
     if future_date > last_date:
         new_index = pd.date_range(start=selected_data.index[0], periods=len(selected_data) + num_days, freq='D')
         extended_data = selected_data.reindex(new_index, method='ffill')
         
         ma_7 = 7
         ma_14 = 14
+        
         extended_data[f'MA_{ma_7}'] = SMAIndicator(close=extended_data['Close'], window=ma_7).sma_indicator()
         extended_data[f'MA_{ma_14}'] = SMAIndicator(close=extended_data['Close'], window=ma_14).sma_indicator()
         
         future_price = (extended_data[f'MA_{ma_7}'].iloc[-1] + extended_data[f'MA_{ma_14}'].iloc[-1]) / 2
         return future_price, future_date
+    
     return None, None
 
 def determine_best_time_to_trade_future(chosen_coin, num_days):
@@ -1448,9 +1451,74 @@ def determine_best_time_to_trade_future(chosen_coin, num_days):
     
     if future_price is not None:
         current_price = selected_data['Close'].iloc[-1]
+        price_change = future_price - current_price
+        percentage_change = (price_change / current_price) * 100
         action = "Buy" if future_price > current_price else "Sell"
-        st.write(f"Recommendation: {action}")
-        st.write(f"Forecasted price for {future_date.date()}: {future_price}")
+        confidence = "Strong" if abs(percentage_change) > 5 else "Moderate" if abs(percentage_change) > 2 else "Weak"
+        
+        # Style the results box
+        st.markdown("""
+        <style>
+        .result-box {
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            background-color: #f0f2f6;
+            border-left: 5px solid #4e8cff;
+        }
+        .metric-label {
+            font-size: 14px;
+            color: #555;
+            font-weight: bold;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .price-up {
+            color: #10b981;
+        }
+        .price-down {
+            color: #ef4444;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Format the results in a nice box
+        result_html = f"""
+        <div class="result-box">
+            <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                    <div class="metric-label">Current Price</div>
+                    <div class="metric-value">${current_price:.4f}</div>
+                </div>
+                <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                    <div class="metric-label">Predicted Price</div>
+                    <div class="metric-value {'price-up' if price_change > 0 else 'price-down'}">${future_price:.4f}</div>
+                    <div>{'▲' if price_change > 0 else '▼'} {abs(percentage_change):.2f}%</div>
+                </div>
+                <div style="min-width: 150px; margin-bottom: 15px;">
+                    <div class="metric-label">Forecast Date</div>
+                    <div class="metric-value">{future_date.strftime('%Y-%m-%d')}</div>
+                    <div>({num_days} days ahead)</div>
+                </div>
+            </div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">
+                    Recommendation: <span style="color: {'#10b981' if action == 'Buy' else '#ef4444'}">{action}</span> with {confidence} confidence
+                </div>
+                <div style="font-style: italic; color: #666;">
+                    Based on moving average analysis of {chosen_coin}'s historical data
+                </div>
+            </div>
+        </div>
+        """
+        
+        st.markdown(result_html, unsafe_allow_html=True)
+        
+        # Display uncertainty disclaimer
+        st.caption("Note: This forecast is an estimate and market conditions can change unexpectedly.")
     else:
         st.write("Unable to forecast price.")
     
