@@ -1775,7 +1775,6 @@ def main():
                     )
                     thread.start()
                     st.rerun()
-                    st.success(f"Training Completed")
         
         elif prediction_option == "Training Model Metrics":
             coins = st.multiselect("Select coins:", selected_data.columns)
