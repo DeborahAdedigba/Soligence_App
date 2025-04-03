@@ -1551,17 +1551,21 @@ def find_best_coins(model_type, desired_profit, num_days):
     coins = selected_data.columns[:4]
     models = {}
     
+    # Load models with better error handling
     for coin_index, coin in enumerate(coins, start=1):
         model_folder = f"trained_models/Model_SELECTED_COIN_{coin_index}"
         model_file = f"{model_folder}/{model_type.lower()}_model.pkl"
         
-        if os.path.exists(model_file):
+        try:
             if model_type == 'LSTM':
                 model_path = model_file.replace('.pkl', '.keras')
                 if os.path.exists(model_path):
                     models[coin] = tf.keras.models.load_model(model_path)
             else:
-                models[coin] = joblib.load(model_file)
+                if os.path.exists(model_file):
+                    models[coin] = joblib.load(model_file)
+        except Exception as e:
+            st.warning(f"Failed to load model for {coin}: {str(e)}")
     
     if not models:
         st.error("No models were loaded successfully.")
@@ -1572,31 +1576,54 @@ def find_best_coins(model_type, desired_profit, num_days):
     next_best_coin = None
     next_best_profit = None
     
+    # Make predictions with better error handling
     for coin, model in models.items():
-        input_data = np.array([[num_days, 0, 0]])
-        
-        if model_type == 'LSTM':
-            input_data = input_data.reshape(1, input_data.shape[1], 1)
-            price_change = model.predict(input_data)[0][0]
-        else:
-            price_change = model.predict(input_data)[0]
-        
-        potential_profit = price_change * desired_profit
-        
-        if closest_coin is None or abs(potential_profit - desired_profit) < abs(closest_profit - desired_profit):
-            next_best_coin = closest_coin
-            next_best_profit = closest_profit
-            closest_coin = coin
-            closest_profit = potential_profit
-        elif next_best_coin is None or abs(potential_profit - desired_profit) < abs(next_best_profit - desired_profit):
-            next_best_coin = coin
-            next_best_profit = potential_profit
+        try:
+            input_data = np.array([[num_days, 0, 0]])
+            
+            if model_type == 'LSTM':
+                input_data = input_data.reshape(1, input_data.shape[1], 1)
+                price_change = model.predict(input_data)[0][0]
+            else:
+                price_change = model.predict(input_data)[0]
+            
+            potential_profit = price_change * desired_profit
+            
+            if closest_coin is None or abs(potential_profit - desired_profit) < abs(closest_profit - desired_profit):
+                next_best_coin = closest_coin
+                next_best_profit = closest_profit
+                closest_coin = coin
+                closest_profit = potential_profit
+            elif next_best_coin is None or abs(potential_profit - desired_profit) < abs(next_best_profit - desired_profit):
+                next_best_coin = coin
+                next_best_profit = potential_profit
+        except Exception as e:
+            st.warning(f"Error predicting for {coin}: {str(e)}")
     
+    # Display results with improved formatting
     st.subheader("Results:")
     if closest_coin:
-        st.write(f"Closest coin: {closest_coin} with profit: {closest_profit}")
+        st.write(f"Closest coin: {closest_coin}")
+        st.write(f"Predicted profit: ${closest_profit:.2f}")
+        st.write(f"Time period: {num_days} days")
+        
+        # Show how close to desired profit
+        profit_percentage = (closest_profit / desired_profit) * 100 if desired_profit != 0 else 0
+        st.write(f"Achieves {profit_percentage:.1f}% of desired profit (${desired_profit:.2f})")
+    else:
+        st.warning("Could not find a suitable primary coin.")
+        
     if next_best_coin:
-        st.write(f"Next best coin: {next_best_coin} with profit: {next_best_profit}")
+        st.write("---")
+        st.write(f"Next best coin: {next_best_coin}")
+        st.write(f"Predicted profit: ${next_best_profit:.2f}")
+        st.write(f"Time period: {num_days} days")
+        
+        # Show how close to desired profit
+        profit_percentage = (next_best_profit / desired_profit) * 100 if desired_profit != 0 else 0
+        st.write(f"Achieves {profit_percentage:.1f}% of desired profit (${desired_profit:.2f})")
+    else:
+        st.warning("Could not find a suitable secondary coin.")
 
 def get_top_crypto_news(crypto, num_stories=5, news_source='all'):
     if news_source == 'all' or news_source == 'Cryptoslate':
