@@ -71,7 +71,9 @@ def initialize_session_state():
     if 'model_paths' not in st.session_state:
         st.session_state.model_paths = {}
     if 'training_progress' not in st.session_state:
-        st.session_state.training_progress = {}  # This should be a dictionary
+        st.session_state.training_progress = {}  # For per-coin progress
+    if 'overall_progress' not in st.session_state:
+        st.session_state.overall_progress = 0  # For tracking total models completed
     if 'training_thread' not in st.session_state:
         st.session_state.training_thread = None
     if 'training_started' not in st.session_state:
@@ -476,7 +478,9 @@ def train_all_models_background(selected_data):
         if 'models_trained' not in st.session_state:
             st.session_state.models_trained = False
         if 'training_progress' not in st.session_state:
-            st.session_state.training_progress = {}  # This should be a dictionary
+            st.session_state.training_progress = {}  # Per-coin progress
+        if 'overall_progress' not in st.session_state:
+            st.session_state.overall_progress = 0    # Total models completed
         if 'total_models' not in st.session_state:
             st.session_state.total_models = min(4, selected_data.shape[1]) * 4  # 4 models per coin
         if 'last_update' not in st.session_state:
@@ -491,7 +495,8 @@ def train_all_models_background(selected_data):
     with threading.Lock():
         st.session_state.training_started = True
         st.session_state.models_trained = False
-        st.session_state.training_progress = {}  # Reset to empty dict
+        st.session_state.training_progress = {}  # Reset per-coin progress
+        st.session_state.overall_progress = 0    # Reset overall counter
         st.session_state.training_error = None
         st.session_state.last_update = time.time()
     
@@ -507,7 +512,7 @@ def train_all_models_background(selected_data):
                 
                 # Update overall progress
                 with threading.Lock():
-                    st.session_state.training_progress += 4  # 4 models per coin
+                    st.session_state.overall_progress += 4  # 4 models per coin
                     st.session_state.last_update = time.time()
             
             # Mark training as complete
@@ -540,15 +545,16 @@ def check_training_status():
     if not isinstance(st.session_state.training_progress, dict):
         st.session_state.training_progress = {}
     
-    if not st.session_state.training_progress:
-        return False
-    
-    # Force rerun if we haven't updated in a while
-    if time.time() - st.session_state.last_update > 5:  # 5 seconds since last update
-        st.rerun()
-    
     st.subheader("Training Progress")
     
+    # Show overall progress
+    if hasattr(st.session_state, 'overall_progress') and hasattr(st.session_state, 'total_models'):
+        overall_progress = st.session_state.overall_progress
+        total_models = st.session_state.total_models
+        st.progress(overall_progress / total_models)
+        st.write(f"Overall progress: {overall_progress}/{total_models} models completed")
+    
+    # Show per-coin progress
     all_completed = True
     any_failed = False
     
@@ -573,13 +579,13 @@ def check_training_status():
             if progress['status'] not in ['Completed', 'Failed']:
                 st.progress(progress['progress'] / 100)
     
-    if all_completed and not any_failed:
+    if all_completed and not any_failed and overall_progress >= total_models:
         st.session_state.models_trained = True
         st.balloons()
         return True
     
     # Auto-refresh every 5 seconds if training is still in progress
-    if not all_completed:
+    if not all_completed or overall_progress < total_models:
         time.sleep(5)
         st.rerun()
     
