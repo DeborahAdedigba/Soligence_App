@@ -47,6 +47,22 @@ os.makedirs("cached_models", exist_ok=True)
 os.makedirs("trained_models", exist_ok=True)
 memory = Memory("cached_models", verbose=0)
 
+
+def initialize_session_state():
+    """Initialize all required session state variables"""
+    required_vars = {
+        'models_trained': False,
+        'model_paths': {},
+        'training_progress': {},
+        'training_thread': None,
+        'training_started': False,
+        'last_update': time.time()
+    }
+    
+    for var, default in required_vars.items():
+        if var not in st.session_state:
+            st.session_state[var] = default
+
 # Initialize session state
 def initialize_session_state():
     """Initialize all required session state variables"""
@@ -217,11 +233,13 @@ def train_models_for_coin(selected_data, coin_index):
     if not hasattr(st.session_state, 'training_progress'):
         st.session_state.training_progress = {}
     
+    initialize_session_state()
+    
     coin_name = selected_data.columns[coin_index]
     logging.info(f"Starting training for {coin_name}")
     
     try:
-        # Thread-safe session state update
+        # Thread-safe session state updates
         with threading.Lock():
             st.session_state.training_progress[coin_name] = {
                 'status': 'In Progress',
@@ -303,9 +321,11 @@ def train_models_for_coin(selected_data, coin_index):
             saved_paths[name] = model_dir
         
         with threading.Lock():
-            st.session_state.training_progress[coin_name]['status'] = 'Completed'
+            if not hasattr(st.session_state, 'model_paths'):
+                st.session_state.model_paths = {}
             st.session_state.model_paths.update(saved_paths)
             st.session_state.last_update = time.time()
+        
         logging.info(f"Successfully completed training for {coin_name}")
         
     except Exception as e:
@@ -357,13 +377,14 @@ def train_lstm(X_train, y_train):
 
 # Modify the train_all_models_background function
 def train_all_models_background(selected_data):
-    """Train models for all coins in a background thread"""
-    # Ensure session state is initialized
+    """Train models for all coins in a background thread with proper initialization"""
+    # Initialize session state before starting
     initialize_session_state()
     
     logging.info("Starting model training in background")
-    st.session_state.training_started = True
-    st.session_state.models_trained = False
+    with threading.Lock():
+        st.session_state.training_started = True
+        st.session_state.models_trained = False
     
     def training_task():
         try:
@@ -379,8 +400,8 @@ def train_all_models_background(selected_data):
             error_msg = f"Training failed: {str(e)}"
             logging.error(error_msg, exc_info=True)
             with threading.Lock():
-                st.error(error_msg)
                 st.session_state.last_update = time.time()
+            raise
     
     st.session_state.training_thread = threading.Thread(target=training_task, daemon=True)
     st.session_state.training_thread.start()
