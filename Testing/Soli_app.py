@@ -1535,13 +1535,11 @@ import numpy as np
 from datetime import datetime, timedelta
 from tensorflow.keras.models import load_model
 
-import streamlit as st
 import os
 import joblib
-import logging
+import streamlit as st
 from datetime import datetime, timedelta
 from tensorflow.keras.models import load_model
-import numpy as np
 
 def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
     try:
@@ -1639,40 +1637,75 @@ def create_prediction_interface(selected_data):
         if predict_button:
             with st.spinner("Analyzing market data..."):
                 future_price, future_date = forecast_price_with_model(chosen_coin, num_days, model_type, selected_data)
-                if future_price:
-                    result_html = f"""
+                
+                if future_price is not None:
+                    current_price = selected_data[chosen_coin].iloc[-1]
+                    price_change = future_price - current_price
+                    percentage_change = (price_change / current_price) * 100
+                    action = "Buy" if future_price > current_price else "Sell"
+                    confidence = "Strong" if abs(percentage_change) > 5 else "Moderate" if abs(percentage_change) > 2 else "Weak"
+                    
+                    st.markdown("""
                     <style>
-                    .result-box {{
+                    .result-box {
                         padding: 20px;
                         border-radius: 10px;
+                        margin-bottom: 20px;
                         background-color: #f0f2f6;
-                        border-left: 5px solid {'#10b981' if future_price >= selected_data[chosen_coin].iloc[-1] else '#ef4444'};
-                        margin-top: 20px;
-                    }}
-                    .metric-label {{
+                        border-left: 5px solid #4e8cff;
+                    }
+                    .metric-label {
                         font-size: 14px;
                         color: #555;
                         font-weight: bold;
-                    }}
-                    .metric-value {{
+                    }
+                    .metric-value {
                         font-size: 24px;
                         font-weight: bold;
-                    }}
-                    .price-up {{
+                        margin-bottom: 5px;
+                    }
+                    .price-up {
                         color: #10b981;
-                    }}
-                    .price-down {{
+                    }
+                    .price-down {
                         color: #ef4444;
-                    }}
+                    }
                     </style>
+                    """, unsafe_allow_html=True)
+                    
+                    result_html = f"""
                     <div class="result-box">
-                        <div class="metric-label">Predicted Price for {chosen_coin} on {future_date.strftime('%Y-%m-%d')}</div>
-                        <div class="metric-value {'price-up' if future_price >= selected_data[chosen_coin].iloc[-1] else 'price-down'}">
-                            ${future_price:.4f}
+                        <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                            <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                                <div class="metric-label">Current Price</div>
+                                <div class="metric-value">${current_price:.4f}</div>
+                            </div>
+                            <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                                <div class="metric-label">Predicted Price</div>
+                                <div class="metric-value {'price-up' if price_change > 0 else 'price-down'}">${future_price:.4f}</div>
+                                <div>{'▲' if price_change > 0 else '▼'} {abs(percentage_change):.2f}%</div>
+                            </div>
+                            <div style="min-width: 150px; margin-bottom: 15px;">
+                                <div class="metric-label">Forecast Date</div>
+                                <div class="metric-value">{future_date.strftime('%Y-%m-%d')}</div>
+                                <div>({num_days} days ahead)</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                            <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">
+                                Recommendation: <span style="color: {'#10b981' if action == 'Buy' else '#ef4444'}">{action}</span> with {confidence} confidence
+                            </div>
+                            <div style="font-style: italic; color: #666;">
+                                Based on historical data and predictive analysis of {chosen_coin}
+                            </div>
                         </div>
                     </div>
                     """
+                    
                     st.markdown(result_html, unsafe_allow_html=True)
+                    st.caption("Note: This forecast is an estimate and market conditions can change unexpectedly.")
+                else:
+                    st.write("Unable to forecast price.")
 
     
 # getting best coins   
