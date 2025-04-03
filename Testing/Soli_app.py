@@ -1542,7 +1542,8 @@ def determine_best_time_to_trade(chosen_coin, num_days, model_type):
         st.error(f"Error in trade determination: {str(e)}")
         logging.error(f"Error in determine_best_time_to_trade: {str(e)}", exc_info=True)
         return None
-    
+
+# getting best coins   
 def find_best_coins(model_type, desired_profit, num_days):
     if selected_data.empty:
         st.error("No selected coins data available.")
@@ -1550,6 +1551,7 @@ def find_best_coins(model_type, desired_profit, num_days):
     
     coins = selected_data.columns[:4]
     models = {}
+    predictions = {}
     
     # Load models with better error handling
     for coin_index, coin in enumerate(coins, start=1):
@@ -1571,12 +1573,7 @@ def find_best_coins(model_type, desired_profit, num_days):
         st.error("No models were loaded successfully.")
         return
     
-    closest_coin = None
-    closest_profit = None
-    next_best_coin = None
-    next_best_profit = None
-    
-    # Make predictions with better error handling
+    # Make predictions for all coins
     for coin, model in models.items():
         try:
             input_data = np.array([[num_days, 0, 0]])
@@ -1588,42 +1585,85 @@ def find_best_coins(model_type, desired_profit, num_days):
                 price_change = model.predict(input_data)[0]
             
             potential_profit = price_change * desired_profit
-            
-            if closest_coin is None or abs(potential_profit - desired_profit) < abs(closest_profit - desired_profit):
-                next_best_coin = closest_coin
-                next_best_profit = closest_profit
-                closest_coin = coin
-                closest_profit = potential_profit
-            elif next_best_coin is None or abs(potential_profit - desired_profit) < abs(next_best_profit - desired_profit):
-                next_best_coin = coin
-                next_best_profit = potential_profit
+            predictions[coin] = potential_profit
         except Exception as e:
             st.warning(f"Error predicting for {coin}: {str(e)}")
     
+    if not predictions:
+        st.error("No valid predictions could be generated.")
+        return
+    
+    # Separate coins that exceed target from those that don't
+    exceed_target = {coin: profit for coin, profit in predictions.items() if profit >= desired_profit}
+    below_target = {coin: profit for coin, profit in predictions.items() if profit < desired_profit}
+    
+    # Sort coins that exceed target by profit (descending)
+    # Sort coins below target by how close they are to target (ascending)
+    
+    recommended_coins = []
+    
+    # If we have coins that exceed target, recommend the best ones
+    if exceed_target:
+        sorted_exceed = sorted(exceed_target.items(), key=lambda x: x[1], reverse=True)
+        # Take best performing and closest to target from those exceeding
+        if len(sorted_exceed) >= 2:
+            # Best performer
+            recommended_coins.append(sorted_exceed[0])
+            # Find closest to target but still exceeding
+            sorted_by_closeness = sorted(exceed_target.items(), key=lambda x: abs(x[1] - desired_profit))
+            recommended_coins.append(sorted_by_closeness[0])
+        else:
+            recommended_coins.append(sorted_exceed[0])
+            # If we only have one coin exceeding, get the best from below target
+            if below_target:
+                sorted_below = sorted(below_target.items(), key=lambda x: abs(x[1] - desired_profit))
+                recommended_coins.append(sorted_below[0])
+    else:
+        # If no coins exceed target, get the two closest
+        sorted_below = sorted(below_target.items(), key=lambda x: abs(x[1] - desired_profit))
+        if len(sorted_below) >= 2:
+            recommended_coins.append(sorted_below[0])
+            recommended_coins.append(sorted_below[1])
+        elif len(sorted_below) == 1:
+            recommended_coins.append(sorted_below[0])
+    
     # Display results with improved formatting
     st.subheader("Results:")
-    if closest_coin:
-        st.write(f"Closest coin: {closest_coin}")
-        st.write(f"Predicted profit: ${closest_profit:.2f}")
+    
+    # First recommendation
+    if len(recommended_coins) >= 1:
+        coin, profit = recommended_coins[0]
+        if profit >= desired_profit:
+            st.success(f"Best performing coin: {coin}")
+            exceeds_by = profit - desired_profit
+            st.write(f"Predicted profit: ${profit:.2f} (exceeds target by ${exceeds_by:.2f})")
+        else:
+            st.warning(f"Closest coin: {coin}")
+            shortfall = desired_profit - profit
+            st.write(f"Predicted profit: ${profit:.2f} (below target by ${shortfall:.2f})")
+        
         st.write(f"Time period: {num_days} days")
-        
-        # Show how close to desired profit
-        profit_percentage = (closest_profit / desired_profit) * 100 if desired_profit != 0 else 0
+        profit_percentage = (profit / desired_profit) * 100 if desired_profit != 0 else 0
         st.write(f"Achieves {profit_percentage:.1f}% of desired profit (${desired_profit:.2f})")
-    else:
-        st.warning("Could not find a suitable primary coin.")
-        
-    if next_best_coin:
+    
+    # Second recommendation
+    if len(recommended_coins) >= 2:
         st.write("---")
-        st.write(f"Next best coin: {next_best_coin}")
-        st.write(f"Predicted profit: ${next_best_profit:.2f}")
-        st.write(f"Time period: {num_days} days")
+        coin, profit = recommended_coins[1]
+        if profit >= desired_profit:
+            label = "Alternative option (exceeds target):"
+            if profit > recommended_coins[0][1]:
+                label = "Alternative option (higher profit):"
+            elif abs(profit - desired_profit) < abs(recommended_coins[0][1] - desired_profit):
+                label = "Alternative option (closer to target):"
+            st.success(f"{label} {coin}")
+        else:
+            st.warning(f"Alternative option: {coin}")
         
-        # Show how close to desired profit
-        profit_percentage = (next_best_profit / desired_profit) * 100 if desired_profit != 0 else 0
+        st.write(f"Predicted profit: ${profit:.2f}")
+        st.write(f"Time period: {num_days} days")
+        profit_percentage = (profit / desired_profit) * 100 if desired_profit != 0 else 0
         st.write(f"Achieves {profit_percentage:.1f}% of desired profit (${desired_profit:.2f})")
-    else:
-        st.warning("Could not find a suitable secondary coin.")
 
 def get_top_crypto_news(crypto, num_stories=5, news_source='all'):
     if news_source == 'all' or news_source == 'Cryptoslate':
