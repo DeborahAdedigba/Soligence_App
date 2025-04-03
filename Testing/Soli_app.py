@@ -1535,6 +1535,14 @@ import numpy as np
 from datetime import datetime, timedelta
 from tensorflow.keras.models import load_model
 
+import streamlit as st
+import os
+import joblib
+import logging
+from datetime import datetime, timedelta
+from tensorflow.keras.models import load_model
+import numpy as np
+
 def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
     try:
         if chosen_coin not in selected_data.columns:
@@ -1632,7 +1640,39 @@ def create_prediction_interface(selected_data):
             with st.spinner("Analyzing market data..."):
                 future_price, future_date = forecast_price_with_model(chosen_coin, num_days, model_type, selected_data)
                 if future_price:
-                    st.success(f"Predicted price for {chosen_coin} on {future_date.strftime('%Y-%m-%d')}: ${future_price:.4f}")
+                    result_html = f"""
+                    <style>
+                    .result-box {{
+                        padding: 20px;
+                        border-radius: 10px;
+                        background-color: #f0f2f6;
+                        border-left: 5px solid {'#10b981' if future_price >= selected_data[chosen_coin].iloc[-1] else '#ef4444'};
+                        margin-top: 20px;
+                    }}
+                    .metric-label {{
+                        font-size: 14px;
+                        color: #555;
+                        font-weight: bold;
+                    }}
+                    .metric-value {{
+                        font-size: 24px;
+                        font-weight: bold;
+                    }}
+                    .price-up {{
+                        color: #10b981;
+                    }}
+                    .price-down {{
+                        color: #ef4444;
+                    }}
+                    </style>
+                    <div class="result-box">
+                        <div class="metric-label">Predicted Price for {chosen_coin} on {future_date.strftime('%Y-%m-%d')}</div>
+                        <div class="metric-value {'price-up' if future_price >= selected_data[chosen_coin].iloc[-1] else 'price-down'}">
+                            ${future_price:.4f}
+                        </div>
+                    </div>
+                    """
+                    st.markdown(result_html, unsafe_allow_html=True)
 
     
 # getting best coins   
@@ -1960,8 +2000,9 @@ def main():
                 determine_best_time_to_trade_future(coin, days)
             else:
                 # model = st.selectbox("Select model:", ["SVR", "GBR", "XGBoost", "LSTM"])
-                determine_best_time_to_trade(coin, days, model)
+                # determine_best_time_to_trade(coin, days, model)
                 create_prediction_interface(selected_data) 
+                determine_best_time_to_trade_future(coin, days)
         elif prediction_option == "Predict coin by Profit":
             model_type = st.selectbox("Select model:", ['Gradient_Boosting', 'SVR', 'Xgboost', 'LSTM'])
             profit = st.number_input("Desired profit:", value=100)
