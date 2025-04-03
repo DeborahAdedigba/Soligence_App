@@ -1304,57 +1304,94 @@ def determine_best_time_to_trade_future(chosen_coin, num_days):
         st.write("Unable to forecast price.")
     
     return selected_data
-
 def forecast_price_with_model(chosen_coin, num_days, model_type):
-    coin_index = selected_data.columns.get_loc(chosen_coin)
-    model_filename = f"trained_models/Model_SELECTED_COIN_{coin_index+1}/"
-    
-    if model_type == "SVR":
-        model_filename += "svr_model.pkl"
-    elif model_type == "GBR":
-        model_filename += "gradient_boosting_model.pkl"
-    elif model_type == "XGBoost":
-        model_filename += "xgboost_model.pkl"
-    elif model_type == "LSTM":
-        model_filename += "lstm_model.keras"
-    else:
-        st.error("Invalid model type.")
+    try:
+        # Get the coin index
+        coin_index = selected_data.columns.get_loc(chosen_coin)
+        model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index+1}"
+        
+        # Determine model file path
+        model_mapping = {
+            "SVR": "svr_model.pkl",
+            "GBR": "gradient_boosting_model.pkl",
+            "XGBoost": "xgboost_model.pkl",
+            "LSTM": "lstm_model.keras"
+        }
+        
+        if model_type not in model_mapping:
+            st.error(f"Invalid model type: {model_type}")
+            return None, None
+            
+        model_filename = os.path.join(model_dir, model_mapping[model_type])
+        
+        if not os.path.exists(model_filename):
+            st.error(f"Model not found: {model_filename}")
+            return None, None
+        
+        # Create lag features if they don't exist
+        features = []
+        for lag in range(1, 4):
+            lag_col = f'{chosen_coin}_lag_{lag}'
+            if lag_col not in selected_data.columns:
+                selected_data[lag_col] = selected_data[chosen_coin].shift(lag)
+            features.append(lag_col)
+        
+        # Remove any rows with NaN values from shifting
+        selected_data_clean = selected_data.dropna(subset=features)
+        
+        if len(selected_data_clean) == 0:
+            st.error("Not enough historical data to generate forecast")
+            return None, None
+            
+        # Get the most recent data point
+        X_array = selected_data_clean[features].to_numpy()
+        
+        if model_type == "LSTM":
+            model = load_model(model_filename)
+            X_today = X_array[-1].reshape(1, len(features), 1)
+            future_price = model.predict(X_today)[0][0]
+        else:
+            model = joblib.load(model_filename)
+            X_today = X_array[-1].reshape(1, -1)
+            future_price = model.predict(X_today)[0]
+        
+        future_date = datetime.now() + timedelta(days=num_days)
+        return future_price, future_date
+        
+    except Exception as e:
+        st.error(f"Error in price forecasting: {str(e)}")
+        logging.error(f"Error in forecast_price_with_model: {str(e)}", exc_info=True)
         return None, None
-    
-    if not os.path.exists(model_filename):
-        st.error(f"Model not found: {model_filename}")
-        return None, None
-    
-    if model_type == "LSTM":
-        model = load_model(model_filename)
-        features = [f'{chosen_coin}_lag_{lag}' for lag in range(1, 4)]
-        X_array = selected_data[features].to_numpy()
-        X_today = X_array[-1].reshape(1, 3, 1)
-        future_price = model.predict(X_today)[0][0]
-    else:
-        model = joblib.load(model_filename)
-        features = [f'{chosen_coin}_lag_{lag}' for lag in range(1, 4)]
-        X_array = selected_data[features].to_numpy()
-        X_today = X_array[-1].reshape(1, -1)
-        future_price = model.predict(X_today)[0]
-    
-    future_date = datetime.now() + timedelta(days=num_days)
-    return future_price, future_date
 
 def determine_best_time_to_trade(chosen_coin, num_days, model_type):
-    selected_data = apply_ma_trading_strategy(chosen_coin)
-    future_price, future_date = forecast_price_with_model(chosen_coin, num_days, model_type)
+    try:
+        selected_data = apply_ma_trading_strategy(chosen_coin)
+        if selected_data is None:
+            st.error("Could not load trading data")
+            return None
+            
+        future_price, future_date = forecast_price_with_model(chosen_coin, num_days, model_type)
+        
+        if future_price is not None:
+            current_price = selected_data['Close'].iloc[-1]
+            action = "Buy" if future_price > current_price else "Sell"
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Current Price", f"{current_price:.4f}")
+            with col2:
+                st.metric("Forecasted Price", f"{future_price:.4f}")
+            
+            st.success(f"Recommendation ({model_type}): {action}")
+            st.info(f"Forecast for {future_date.strftime('%Y-%m-%d')}")
+            
+        return selected_data
+        
+    except Exception as e:
+        st.error(f"Error in trade determination: {str(e)}")
+        logging.error(f"Error in determine_best_time_to_trade: {str(e)}", exc_info=True)
+        return None
     
-    if future_price is not None:
-        current_price = selected_data['Close'].iloc[-1]
-        action = "Buy" if future_price > current_price else "Sell"
-        st.write(f"Recommendation ({model_type}): {action}")
-        st.write(f"Forecasted price for {future_date.date()}: {future_price}")
-    else:
-        st.write("Unable to forecast price.")
-    
-    return selected_data
-
 def find_best_coins(model_type, desired_profit, num_days):
     if selected_data.empty:
         st.error("No selected coins data available.")
@@ -1369,9 +1406,19 @@ def find_best_coins(model_type, desired_profit, num_days):
         
         if os.path.exists(model_file):
             if model_type == 'LSTM':
-                models[coin] = tf.keras.models.load_model(model_file.replace('.pkl', '.keras'))
+                model_path = model_file.replace('.pkl', '.keras')
+                if os.path.exists(model_path):
+                    models[coin] = tf.keras.models.load_model(model_path)
+                    st.write(f"Successfully loaded LSTM model for {coin}")
+                else:
+                    st.write(f"LSTM model file not found at {model_path}")
             else:
                 models[coin] = joblib.load(model_file)
+                st.write(f"Loaded {model_type} model for {coin}")
+    
+    if not models:
+        st.error("No models were loaded successfully.")
+        return
     
     closest_coin = None
     closest_profit = None
@@ -1380,14 +1427,23 @@ def find_best_coins(model_type, desired_profit, num_days):
     
     for coin, model in models.items():
         input_data = np.array([[num_days, 0, 0]])
+        st.write(f"\nProcessing {coin} with {model_type} model")
+        st.write(f"Input data shape before reshape: {input_data.shape}")
         
         if model_type == 'LSTM':
             input_data = input_data.reshape(1, input_data.shape[1], 1)
-            price_change = model.predict(input_data)[0][0]
+            st.write(f"Reshaped input for LSTM: {input_data.shape}")
+            prediction = model.predict(input_data)
+            st.write(f"Raw prediction output: {prediction}")
+            st.write(f"Prediction shape: {prediction.shape}")
+            price_change = prediction[0][0]
         else:
-            price_change = model.predict(input_data)[0]
+            prediction = model.predict(input_data)
+            st.write(f"Raw prediction output: {prediction}")
+            price_change = prediction[0]
         
         potential_profit = price_change * desired_profit
+        st.write(f"Calculated potential profit: {potential_profit}")
         
         if closest_coin is None or abs(potential_profit - desired_profit) < abs(closest_profit - desired_profit):
             next_best_coin = closest_coin
@@ -1561,7 +1617,7 @@ def main():
                 evaluate_models_selected_coin(selected_data, coin_index, model)
         elif prediction_option == "Prediction Graphs":
             coin = st.selectbox("Select coin:", selected_data.columns)
-            model = st.selectbox("Select model:", ['GRADIENT BOOSTING', 'SVR', 'XGBOOST', 'LSTM'])
+            model = st.selectbox("Select model:", ['Gradient Boosting', 'SVR', 'XGBOOST', 'LSTM'])
             frequency = st.selectbox("Select frequency:", ['daily', 'weekly', 'monthly', 'quarterly'])
             periods = st.number_input("Number of periods:", min_value=1, value=20)
             
