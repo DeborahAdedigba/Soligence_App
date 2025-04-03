@@ -362,66 +362,27 @@ def train_models_for_coin(selected_data, coin_index):
         raise e
 
 
-def train_lstm(X_train, y_train):
-    """Train LSTM model (requires numpy arrays)"""
-    logging.info("Initializing LSTM model")
-
-    tf.keras.backend.clear_session()
-    
-    model = tf.keras.Sequential([
-        tf.keras.layers.LSTM(32, input_shape=(X_train.shape[1], 1)),
-        tf.keras.layers.Dense(16, activation='relu'),
-        tf.keras.layers.Dense(1)
-    ])
-    
-    model.compile(optimizer='adam', loss='mse')
-    
-    # Ensure data is numpy array
-    X_array = np.array(X_train, dtype=np.float32).reshape(X_train.shape[0], X_train.shape[1], 1)
-    y_array = np.array(y_train, dtype=np.float32)
-    
-    model.fit(X_array, y_array, epochs=50, batch_size=32, verbose=1)
-
-
-    logging.info("Starting LSTM training")
-    history = model.fit(
-        X_train_reshaped, y_train,
-        epochs=50,
-        batch_size=32,
-        validation_split=0.2,
-        callbacks=[early_stop],
-        verbose=1
-    )
-    logging.info("Completed LSTM training")
-    
-    return model
-# Modify the train_lstm function to add logging
 # def train_lstm(X_train, y_train):
-#     """Train LSTM model with simplified architecture"""
+#     """Train LSTM model (requires numpy arrays)"""
 #     logging.info("Initializing LSTM model")
-    
-#     # Clear any existing session
+
 #     tf.keras.backend.clear_session()
     
-#     model = tf.keras.Sequential()
-#     model.add(tf.keras.layers.LSTM(32, input_shape=(X_train.shape[1], 1)))
-#     model.add(tf.keras.layers.Dense(16, activation='relu'))
-#     model.add(tf.keras.layers.Dense(1))
+#     model = tf.keras.Sequential([
+#         tf.keras.layers.LSTM(32, input_shape=(X_train.shape[1], 1)),
+#         tf.keras.layers.Dense(16, activation='relu'),
+#         tf.keras.layers.Dense(1)
+#     ])
     
-#     model.compile(
-#         optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-#         loss='mse',
-#         metrics=['mae']
-#     )
+#     model.compile(optimizer='adam', loss='mse')
     
-#     early_stop = tf.keras.callbacks.EarlyStopping(
-#         monitor='val_loss',
-#         patience=5,
-#         restore_best_weights=True
-#     )
+#     # Ensure data is numpy array
+#     X_array = np.array(X_train, dtype=np.float32).reshape(X_train.shape[0], X_train.shape[1], 1)
+#     y_array = np.array(y_train, dtype=np.float32)
     
-#     X_train_reshaped = X_train.to_numpy().reshape(X_train.shape[0], X_train.shape[1], 1)
-    
+#     model.fit(X_array, y_array, epochs=50, batch_size=32, verbose=1)
+
+
 #     logging.info("Starting LSTM training")
 #     history = model.fit(
 #         X_train_reshaped, y_train,
@@ -434,6 +395,76 @@ def train_lstm(X_train, y_train):
 #     logging.info("Completed LSTM training")
     
 #     return model
+def train_lstm(X_train, y_train):
+    """Train LSTM model (requires numpy arrays)"""
+    logging.info("Initializing LSTM model training")
+    
+    try:
+        # Clear any existing session
+        tf.keras.backend.clear_session()
+        logging.info("Cleared previous Keras session")
+
+        # Define early stopping callback
+        early_stop = EarlyStopping(
+            monitor='val_loss',
+            patience=5,
+            restore_best_weights=True,
+            verbose=1
+        )
+        logging.info("Configured early stopping callback")
+
+        # Build model
+        model = tf.keras.Sequential([
+            tf.keras.layers.LSTM(32, input_shape=(X_train.shape[1], 1)),
+            tf.keras.layers.Dense(16, activation='relu'),
+            tf.keras.layers.Dense(1)
+        ])
+        logging.info("Created LSTM model architecture")
+
+        # Compile model
+        model.compile(
+            optimizer='adam',
+            loss='mse',
+            metrics=['mae']
+        )
+        logging.info("Compiled LSTM model")
+
+        # Prepare data
+        logging.info("Preparing training data")
+        X_train_reshaped = np.array(X_train, dtype=np.float32).reshape(
+            X_train.shape[0], X_train.shape[1], 1
+        )
+        y_train_array = np.array(y_train, dtype=np.float32)
+        logging.info(f"Training data shape: {X_train_reshaped.shape}")
+        logging.info(f"Target data shape: {y_train_array.shape}")
+
+        # Train model
+        logging.info("Starting LSTM training")
+        history = model.fit(
+            X_train_reshaped, 
+            y_train_array,
+            epochs=50,
+            batch_size=32,
+            validation_split=0.2,
+            callbacks=[early_stop],
+            verbose=1
+        )
+        
+        # Log training results
+        final_epoch = len(history.history['loss'])
+        final_loss = history.history['loss'][-1]
+        final_val_loss = history.history.get('val_loss', [None])[-1]
+        
+        logging.info(f"Completed LSTM training after {final_epoch} epochs")
+        logging.info(f"Final training loss: {final_loss:.4f}")
+        if final_val_loss is not None:
+            logging.info(f"Final validation loss: {final_val_loss:.4f}")
+        
+        return model
+
+    except Exception as e:
+        logging.error(f"Error during LSTM training: {str(e)}", exc_info=True)
+        return None
 
 # Modify the train_all_models_background function
 def train_all_models_background(selected_data):
