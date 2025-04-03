@@ -71,7 +71,7 @@ def initialize_session_state():
     if 'model_paths' not in st.session_state:
         st.session_state.model_paths = {}
     if 'training_progress' not in st.session_state:
-        st.session_state.training_progress = {}
+        st.session_state.training_progress = {}  # This should be a dictionary
     if 'training_thread' not in st.session_state:
         st.session_state.training_thread = None
     if 'training_started' not in st.session_state:
@@ -251,9 +251,6 @@ setup_logging()
 def train_models_for_coin(selected_data, coin_index):
     """Train all models for a specific coin with progress tracking"""
     # Initialize session state for this thread
-    if not hasattr(st.session_state, 'training_progress'):
-        st.session_state.training_progress = {}
-    
     initialize_session_state()
     
     coin_name = selected_data.columns[coin_index]
@@ -262,6 +259,10 @@ def train_models_for_coin(selected_data, coin_index):
     try:
         # Thread-safe session state updates
         with threading.Lock():
+            # Ensure training_progress is a dictionary
+            if not isinstance(st.session_state.training_progress, dict):
+                st.session_state.training_progress = {}
+                
             st.session_state.training_progress[coin_name] = {
                 'status': 'In Progress',
                 'current_model': None,
@@ -444,7 +445,7 @@ def train_all_models_background(selected_data):
         if 'models_trained' not in st.session_state:
             st.session_state.models_trained = False
         if 'training_progress' not in st.session_state:
-            st.session_state.training_progress = 0
+            st.session_state.training_progress = {}  # This should be a dictionary
         if 'total_models' not in st.session_state:
             st.session_state.total_models = min(4, selected_data.shape[1]) * 4  # 4 models per coin
         if 'last_update' not in st.session_state:
@@ -459,7 +460,7 @@ def train_all_models_background(selected_data):
     with threading.Lock():
         st.session_state.training_started = True
         st.session_state.models_trained = False
-        st.session_state.training_progress = 0
+        st.session_state.training_progress = {}  # Reset to empty dict
         st.session_state.training_error = None
         st.session_state.last_update = time.time()
     
@@ -505,6 +506,9 @@ def train_all_models_background(selected_data):
 
 def check_training_status():
     """Check and display training progress"""
+    if not isinstance(st.session_state.training_progress, dict):
+        st.session_state.training_progress = {}
+    
     if not st.session_state.training_progress:
         return False
     
