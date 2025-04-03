@@ -399,7 +399,7 @@ def train_all_models_background(selected_data):
         logging.info(f"Training models for {coin_name}")
         
         models = [
-            ('Linear Regression', train_linear_regression),
+            ('Linear Regression', train_lstm),
             ('Gradient Boosting', train_gradient_boosting),
             ('SVR', train_svr),
             ('LSTM', train_lstm)
