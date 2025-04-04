@@ -1382,7 +1382,7 @@ def analyze_coin_correlation():
 
 def plot_moving_average():
     """Enhanced moving average visualization while preserving sidebar structure."""
-    st.header("Plotting Moving AVerage")
+    st.header("Plotting Moving Average")
     
     # Get available coins from the data
     available_coins = combined_data['Crypto'].unique()
@@ -2897,6 +2897,7 @@ def main():
                     use_container_width=True)
             st.write("Explore different visualizations to gain insights into cryptocurrency markets.")
         elif visualization_option == 'Price Comparison':
+            st.header("Price Comparison by Metrics and Coin")
             vis_option = st.sidebar.radio("Compare:", ['Metrics', 'Coins'])
             
             if vis_option == 'Metrics':
@@ -2916,12 +2917,15 @@ def main():
                 if st.button("Plot"):
                     plot_crypto_coins(coins, metric, str(start_date), str(end_date))
         elif visualization_option == 'Candlestick Chart':
+            st.header("Plotting Candlestick and Volumne Chart")
             coin = st.selectbox("Select cryptocurrency:", combined_data['Crypto'].unique())
             period = st.radio("Select period:", ['Daily', 'Weekly', 'Monthly'])
             plot_candlestick_chart(coin, period[0])
         elif visualization_option == 'Market State Visualization':
+            st.header("Plotting Market State Over Time")
             visualize_market_state()
         elif visualization_option == "Predicted Highs and Lows":
+            st.header("Plotting Market Highs and Lows")
             predict_highs_lows()
     elif page == "Predictions":
         prediction_option = st.sidebar.radio("Select:", 
@@ -2983,6 +2987,7 @@ def main():
                     st.rerun()
         
         elif prediction_option == "Training Model Metrics":
+            st.header("Selected Model Metrics")
             coins = st.multiselect("Select coins:", selected_data.columns)
             model = st.selectbox("Select model:", ['all', 'Gradient Boosting', 'SVR', 'XGBoost', 'LSTM'])
             
@@ -3114,6 +3119,7 @@ def main():
                 if submit_button:
                     find_best_coins(model_type, profit, days)
     elif page == "NEWS":
+        st.header("Search Cryptocurrency NEWS")
         crypto = st.text_input("Cryptocurrency:", "Bitcoin")
         source = st.selectbox("News source:", ['all', 'Cryptoslate', 'CoinDesk'])
         get_top_crypto_news(crypto, news_source=source)
