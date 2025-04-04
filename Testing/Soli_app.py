@@ -1160,40 +1160,131 @@ def predict_highs_lows():
     st.plotly_chart(fig)
 
 def display_selected_coins():
-    st.title("Selected Coins Analysis")
+    st.header("📊 Selected Cryptocurrencies Analysis")
     
     if selected_data.empty:
-        st.error("No selected coins data available.")
+        st.warning("⚠️ No coin data available. Please select coins first.")
         return
     
-    st.dataframe(selected_data)
+    # Add some metrics at the top
+    cols = st.columns(4)
+    for i, col_name in enumerate(selected_data.columns[:4]):
+        cols[i].metric(
+            label=f"Mean {col_name}",
+            value=f"{selected_data[col_name].mean():.2f}",
+            delta=f"{selected_data[col_name].std():.2f} std"
+        )
     
-    fig = make_subplots(rows=1, cols=4)
+    st.subheader("📋 Dataset Preview")
+    st.dataframe(
+        selected_data.style.background_gradient(cmap='Blues'),
+        height=min(400, (len(selected_data) + 1) * 35),
+        use_container_width=True
+    )
+    
+    st.subheader("📦 Distribution Analysis")
+    fig = make_subplots(rows=1, cols=4, subplot_titles=[f"<b>{col}</b>" for col in selected_data.columns[:4]])
+    
+    colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA']  # Custom color palette
+    
     for i, column in enumerate(selected_data.columns[:4], start=1):
-        fig.add_trace(go.Box(y=selected_data[column], name=column), row=1, col=i)
+        fig.add_trace(
+            go.Box(
+                y=selected_data[column], 
+                name=column,
+                marker_color=colors[i-1],
+                boxmean=True
+            ), 
+            row=1, 
+            col=i
+        )
     
-    fig.update_layout(title='Boxplot of Selected Coins',
-                    showlegend=False,
-                    width=1000, height=500)
-    st.plotly_chart(fig)
+    fig.update_layout(
+        title='<b>Price Distribution of Selected Cryptocurrencies</b>',
+        title_font=dict(size=18),
+        showlegend=False,
+        width=1000, 
+        height=500,
+        margin=dict(t=60),
+        plot_bgcolor='rgba(240,240,240,0.8)'
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 def plot_coin_scatter():
     if selected_data.empty:
-        st.error("No selected coins data available.")
+        st.warning("⚠️ No coin data available. Please select coins first.")
         return
     
+    st.header("🔍 Pairwise Relationships")
+    st.markdown("Explore how different cryptocurrencies correlate with each other")
+    
     coin_combinations = list(itertools.combinations(selected_data.columns, 2))
-    fig = make_subplots(rows=len(coin_combinations)//3 + 1, cols=3,
-                       subplot_titles=[f"{coin1} vs {coin2}" for coin1, coin2 in coin_combinations])
+    n_plots = len(coin_combinations)
+    n_rows = (n_plots + 2) // 3  # Ensure we have enough rows
+    
+    fig = make_subplots(
+        rows=n_rows, 
+        cols=3,
+        subplot_titles=[f"<b>{coin1}</b> vs <b>{coin2}</b>" for coin1, coin2 in coin_combinations],
+        vertical_spacing=0.1,
+        horizontal_spacing=0.1
+    )
+    
+    # Generate a consistent color palette
+    colors = px.colors.qualitative.Plotly
     
     for i, (coin1, coin2) in enumerate(coin_combinations, start=1):
         row = (i - 1) // 3 + 1
         col = (i - 1) % 3 + 1
-        fig.add_trace(go.Scatter(x=selected_data[coin1], y=selected_data[coin2], 
-                       mode='markers', name=f"{coin1} vs {coin2}"), row=row, col=col)
+        
+        # Calculate correlation for annotation
+        corr = selected_data[coin1].corr(selected_data[coin2])
+        
+        fig.add_trace(
+            go.Scatter(
+                x=selected_data[coin1], 
+                y=selected_data[coin2], 
+                mode='markers',
+                marker=dict(
+                    color=colors[i % len(colors)],
+                    size=8,
+                    opacity=0.6
+                ),
+                name=f"{coin1} vs {coin2}",
+                hoverinfo='x+y'
+            ), 
+            row=row, 
+            col=col
+        )
+        
+        # Add correlation annotation
+        fig.add_annotation(
+            xref=f"x{i}", yref=f"y{i}",
+            x=0.95, y=0.95,
+            text=f"ρ = {corr:.2f}",
+            showarrow=False,
+            font=dict(size=12, color="black"),
+            bgcolor="white",
+            opacity=0.8,
+            row=row,
+            col=col
+        )
     
-    fig.update_layout(height=800, width=1000, showlegend=False)
-    st.plotly_chart(fig)
+    fig.update_layout(
+        height=300 * n_rows,
+        width=1000,
+        showlegend=False,
+        margin=dict(t=40),
+        plot_bgcolor='rgba(240,240,240,0.8)'
+    )
+    
+    # Improve axis labels
+    for i in range(1, n_plots + 1):
+        fig.update_xaxes(title_text="Price", row=(i-1)//3 + 1, col=(i-1)%3 + 1)
+        fig.update_yaxes(title_text="Price", row=(i-1)//3 + 1, col=(i-1)%3 + 1)
+    
+    st.plotly_chart(fig, use_container_width=True)
+
 
 def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
     """
@@ -2380,6 +2471,7 @@ def main():
         
         if prediction_option == "Dataset":
             display_selected_coins()
+            st.markdown("---")  # Add a horizontal divider
             plot_coin_scatter()
     
         elif prediction_option == "Training":
