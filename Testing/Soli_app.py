@@ -1044,6 +1044,7 @@ def plot_moving_average():
                     yaxis_title='Price')
     st.plotly_chart(fig)
 
+
 def plot_crypto_metrics(coin, metrics, start_date, end_date):
     selected_data = combined_data[combined_data['Crypto'] == coin]
     selected_data = selected_data.loc[start_date:end_date]
