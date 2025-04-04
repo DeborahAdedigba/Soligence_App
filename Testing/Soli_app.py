@@ -2049,9 +2049,10 @@ def main():
             )
             
             st.markdown("## Buy/Sell Recommendation Prediction")
-            st.markdown("## Buy and Sell Price Prediction with Moving Average")
             
             if strategy == "Moving Averages":
+                st.markdown("## Buy and Sell Price Prediction with Moving Average")
+            
                 col1, col2 = st.columns([2, 1])
                 with col1:
                     coin = st.selectbox(
