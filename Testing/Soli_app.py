@@ -1530,7 +1530,7 @@ def plot_ma_strategy(selected_data, chosen_coin):
                 line=dict(color=color) if symbol is None else None,
                 marker=dict(color=color, size=10, symbol=symbol) if symbol else None
             ))
-        
+    
         # Add current price line
         current_price = selected_data['Close'].iloc[-1]
         fig.add_trace(go.Scatter(
@@ -1539,7 +1539,7 @@ def plot_ma_strategy(selected_data, chosen_coin):
             mode='lines',
             name='Current Price',
             line=dict(color='gray', dash='dash')
-        )
+        ))
         
         # Update layout
         fig.update_layout(
