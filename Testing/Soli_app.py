@@ -1505,56 +1505,56 @@ def determine_best_time_to_trade_future(chosen_coin, num_days, combined_data):
         logging.error(f"Error in determine_best_time_to_trade_future: {str(e)}", exc_info=True)
         return None
 
-# def plot_ma_strategy(selected_data, chosen_coin):
-#     """Plot the moving average strategy"""
-#     try:
-#         fig = go.Figure()
+def plot_ma_strategy(selected_data, chosen_coin):
+    """Plot the moving average strategy"""
+    try:
+        fig = go.Figure()
         
-#         # Add traces with proper formatting
-#         traces = [
-#             ('Close Price', 'blue', None, selected_data['Close']),
-#             ('7-day MA', 'green', None, selected_data['MA_7']),
-#             ('14-day MA', 'red', None, selected_data['MA_14']),
-#             ('Buy Signal', 'green', 'triangle-up', 
-#              selected_data.loc[selected_data['Buy_Signal'] == 1, 'Close']),
-#             ('Sell Signal', 'red', 'triangle-down',
-#              selected_data.loc[selected_data['Sell_Signal'] == -1, 'Close'])
-#         ]
+        # Add traces with proper formatting
+        traces = [
+            ('Close Price', 'blue', None, selected_data['Close']),
+            ('7-day MA', 'green', None, selected_data['MA_7']),
+            ('14-day MA', 'red', None, selected_data['MA_14']),
+            ('Buy Signal', 'green', 'triangle-up', 
+             selected_data.loc[selected_data['Buy_Signal'] == 1, 'Close']),
+            ('Sell Signal', 'red', 'triangle-down',
+             selected_data.loc[selected_data['Sell_Signal'] == -1, 'Close'])
+        ]
         
-#         for name, color, symbol, y in traces:
-#             fig.add_trace(go.Scatter(
-#                 x=selected_data.index,
-#                 y=y,
-#                 name=name,
-#                 mode='lines' if symbol is None else 'markers',
-#                 line=dict(color=color) if symbol is None else None,
-#                 marker=dict(color=color, size=10, symbol=symbol) if symbol else None
-#             ))
+        for name, color, symbol, y in traces:
+            fig.add_trace(go.Scatter(
+                x=selected_data.index,
+                y=y,
+                name=name,
+                mode='lines' if symbol is None else 'markers',
+                line=dict(color=color) if symbol is None else None,
+                marker=dict(color=color, size=10, symbol=symbol) if symbol else None
+            ))
         
-#         # Add current price line
-#         current_price = selected_data['Close'].iloc[-1]
-#         fig.add_trace(go.Scatter(
-#             x=[selected_data.index[0], selected_data.index[-1]],
-#             y=[current_price, current_price],
-#             mode='lines',
-#             name='Current Price',
-#             line=dict(color='gray', dash='dash')
-#         )
+        # Add current price line
+        current_price = selected_data['Close'].iloc[-1]
+        fig.add_trace(go.Scatter(
+            x=[selected_data.index[0], selected_data.index[-1]],
+            y=[current_price, current_price],
+            mode='lines',
+            name='Current Price',
+            line=dict(color='gray', dash='dash')
+        )
         
-#         # Update layout
-#         fig.update_layout(
-#             title=f'Moving Average Strategy for {chosen_coin}',
-#             xaxis_title='Date',
-#             yaxis_title='Price',
-#             hovermode='x unified',
-#             showlegend=True
-#         )
+        # Update layout
+        fig.update_layout(
+            title=f'Moving Average Strategy for {chosen_coin}',
+            xaxis_title='Date',
+            yaxis_title='Price',
+            hovermode='x unified',
+            showlegend=True
+        )
         
-#         st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
         
-#     except Exception as e:
-#         st.error(f"Error plotting strategy: {str(e)}")
-#         logging.error(f"Error in plot_ma_strategy: {str(e)}", exc_info=True)
+    except Exception as e:
+        st.error(f"Error plotting strategy: {str(e)}")
+        logging.error(f"Error in plot_ma_strategy: {str(e)}", exc_info=True)
 
 def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
     """Forecast using machine learning models"""
