@@ -829,18 +829,122 @@ def home_section():
   
 
 def about_us():
-    st.title("About Solent Intelligence Ltd.")
-    st.write(
-        "The scale of this organization's operation is impressive, with millions of subscribers and over 150 billion "
-        "pounds worth of investments. This emphasizes the substantial influence that data-driven decisions can have "
-        "on managing such a significant amount of assets. The app's focus on implementing an Intelligent Coin Trading "
-        "(IST) platform, specifically tailored for crypto coin predictions, resonates deeply with me.")
+    """Display information about the application's features and capabilities."""
     
-    st.write("The app's ability to recommend trading opportunities by analyzing "
-        "AI-generated predictions showcases the tangible applications of data science in the financial world. "
-        "Considering a more neutral perspective, while the concept of the app is exciting, there are potential "
-        "challenges that need to be acknowledged.")
-
+    # Header with logo and title
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.image("https://via.placeholder.com/150", width=150)  # Replace with your app logo
+    with col2:
+        st.title("About SOLiGence")
+        st.caption("Intelligent Cryptocurrency Analysis Platform")
+    
+    st.divider()
+    
+    # Core Features
+    with st.container():
+        st.header("✨ Key Features")
+        
+        features = [
+            ("📊 Comprehensive Data Analysis", 
+             "Analyze 30+ major cryptocurrencies with historical price data, volume trends, and market indicators"),
+            
+            ("🤖 AI-Powered Predictions", 
+             "Four advanced machine learning models (GBR, SVR, XGBoost, LSTM) for accurate price forecasting"),
+            
+            ("📈 Advanced Visualizations", 
+             "Interactive charts including candlestick patterns, moving averages, and correlation matrices"),
+            
+            ("🔍 Market Insights", 
+             "Identify market trends, volatility patterns, and optimal trading opportunities"),
+            
+            ("⚡ Real-time Analysis", 
+             "Process and visualize the latest market data with automatic updates"),
+            
+            ("📱 User-Friendly Interface", 
+             "Intuitive controls and customizable views for both beginners and experienced traders")
+        ]
+        
+        for title, desc in features:
+            with st.expander(title, expanded=True):
+                st.write(desc)
+    
+    st.divider()
+    
+    # Technology Stack
+    with st.container():
+        st.header("🛠️ Under the Hood")
+        st.write("This application leverages cutting-edge technologies:")
+        
+        tech_cols = st.columns(3)
+        tech_stack = [
+            ("Machine Learning", "Gradient Boosting, SVR, XGBoost, LSTM"),
+            ("Data Processing", "Pandas, NumPy, Scikit-learn"),
+            ("Visualization", "Plotly, Matplotlib, Streamlit"),
+            ("Data Sources", "Yahoo Finance API, Cryptoslate RSS"),
+            ("Backend", "Python 3.10, TensorFlow, Joblib"),
+            ("Deployment", "Streamlit Cloud, Docker")
+        ]
+        
+        for i, (category, tools) in enumerate(tech_stack):
+            tech_cols[i%3].code(f"{category}:\n{tools}")
+    
+    st.divider()
+    
+    # Data and Models
+    with st.container():
+        st.header("📦 Data & Models")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("Dataset Information")
+            st.write("""
+            - 30 major cryptocurrencies
+            - 4 years of historical data
+            - Daily price/volume metrics
+            - Cleaned and normalized
+            - Automatic updates
+            """)
+            
+        with col2:
+            st.subheader("Prediction Models")
+            st.write("""
+            - **Gradient Boosting**: Best for general trends
+            - **SVR**: Effective in volatile markets
+            - **XGBoost**: High accuracy with feature importance
+            - **LSTM**: Captures temporal patterns
+            """)
+    
+    st.divider()
+    
+    # Usage Guide
+    with st.container():
+        st.header("📚 How To Use")
+        
+        steps = [
+            ("1. Explore Data", "Use the Dataset section to filter, sort and analyze raw market data"),
+            ("2. Visualize Trends", "Create interactive charts in the Visualizations section"),
+            ("3. Analyze Correlations", "See how different coins move together in Coin Correlation"),
+            ("4. Generate Predictions", "Get AI-powered forecasts in the Predictions section"),
+            ("5. Make Decisions", "Use the Buy/Sell recommendations with confidence intervals")
+        ]
+        
+        for title, desc in steps:
+            with st.expander(title, expanded=False):
+                st.write(desc)
+    
+    st.divider()
+    
+    # Disclaimer
+    with st.container():
+        st.warning("""
+        **Important Notice:**  
+        This application provides analytical tools for educational purposes only. 
+        Cryptocurrency trading involves substantial risk. Past performance does not 
+        guarantee future results. Always conduct your own research before making 
+        investment decisions.
+        """)
 def dataset_section():
     """Display and interact with cryptocurrency dataset with improved UI/UX."""
     
