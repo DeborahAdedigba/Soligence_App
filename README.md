@@ -1,85 +1,128 @@
+Here's the improved `README.md` file with corrected file paths and better organization:
+
+```markdown
 # SOLiGence Intelligent Coin Trading (IST) Platform
+
+![SOLiGence Banner](https://via.placeholder.com/1200x400?text=SOLiGence+Platform) <!-- Replace with actual banner image -->
+
+
+## Website
+The application is deployed and accessible at: [Soligence App · Streamlit]([https://melanoma-detection-ai.streamlit.app/](https://soligenceappy.streamlit.app/))
 
 ## Introduction
 
-The SOLiGence Intelligent Coin Trading (IST) platform is an innovative system that leverages advanced AI and machine learning to optimize cryptocurrency trading. This platform is designed to analyze cryptocurrency data from various sources, predict price movements, and suggest profitable trades.
+The SOLiGence Intelligent Coin Trading (IST) platform is an AI-powered cryptocurrency analysis system that combines machine learning with comprehensive market data to deliver actionable trading insights.
 
-## Features
+## ✨ Key Features
 
-- Data acquisition and preprocessing from Yahoo Finance API
-- Principal Component Analysis (PCA) and Clustering Analysis
-- Correlation Analysis
-- Moving Average calculations
-- Exploratory Data Analysis (EDA)
-- Various visualization tools including line charts, candlestick charts, and boxplots
-- Machine Learning models for prediction and forecasting:
-  - Long Short-Term Memory (LSTM) Neural Networks
-  - XGBoost
-  - Gradient Boosting Machines (GBM)
-  - Support Vector Regression (SVR)
-- Trading signal generation and analysis
-- Cryptocurrency news aggregation
-- User-friendly Graphical User Interface (GUI)
+### Data Analysis
+- Automated data acquisition from Yahoo Finance API
+- 30+ major cryptocurrencies tracked
+- 4 years of historical price/volume data
+- Principal Component Analysis (PCA) and clustering
 
-## Installation
+### Machine Learning
+- **LSTM Neural Networks**: For temporal pattern recognition
+- **XGBoost**: High-accuracy gradient boosted trees
+- **Gradient Boosting**: Robust price trend prediction
+- **Support Vector Regression**: Effective in volatile markets
 
-1. Clone this repository:
+### Visualization Tools
+- Interactive candlestick charts
+- Moving average analysis
+- Correlation matrices
+- Market state visualization
+- Price distribution analysis
+
+### Trading Features
+- AI-generated buy/sell signals
+- Profit-based coin selection
+- Risk assessment metrics
+- News aggregation from top sources
+
+## 🛠️ Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/DeborahAdedigba/Soligence_App.git
+   cd Soligence_App/Web_page
    ```
-   git clone https://github.com/yDeborahAdedigba//Soligence_App.git
+
+2. Create and activate a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
-2. Navigate to the project directory:
-   ```
-   cd Testing
-   ```
-3. Install the required dependencies:
-   ```
+
+3. Install dependencies:
+   ```bash
    pip install -r requirements.txt
    ```
 
-## Usage
-
-To run the SOLiGence IST platform:
-
-1. Open a terminal in the project folder.
-2. Run the following command:
+4. Run the application:
+   ```bash
+   streamlit run Soli_app.py
    ```
-   streamlit run Soligence_app.py
-   ```
-3. A new tab will open in your default web browser with the GUI.
-4. Use the sidebar to navigate through different sections of the application.
 
-## Data
+## 🖥️ Usage
 
-The platform uses cryptocurrency data from the Yahoo Finance API, covering 30 coins over a 4-year period.
+After launching the application:
 
-## Models
+1. Use the sidebar to navigate between sections:
+   - **Home**: Platform overview
+   - **Dataset**: Explore and filter cryptocurrency data
+   - **Visualizations**: Interactive charts and technical analysis
+   - **Predictions**: Model training and trading signals
+   - **News**: Latest cryptocurrency market updates
 
-The platform employs several machine learning models:
-- LSTM Neural Networks
-- XGBoost
-- Gradient Boosting Machines (GBM)
-- Support Vector Regression (SVR)
+2. Key workflows:
+   - Generate moving average analyses
+   - View correlation between different coins
+   - Get AI-powered trading recommendations
+   - Compare model performance metrics
 
-These models are used for price prediction and generating trading signals.
+## 📂 Project Structure
 
-## Evaluation Metrics
+```
+Soligence_App/
+├── Web_page/
+│   ├── Soli_app.py          # Main application file
+│   ├── requirements.txt     # Python dependencies
+│   ├── trained_models/      # Saved ML models
+│   └── cached_models/       # Model cache
+├── LICENSE
+└── README.md
+```
 
-Model performance is assessed using:
-- Mean Absolute Error (MAE)
-- Root Mean Squared Error (RMSE)
-- Mean Squared Error (MSE)
-- Mean Absolute Percentage Error (MAPE)
-- R-squared (R2) coefficient
+## 📊 Model Evaluation
 
-## Contributing
+Performance metrics tracked for all models:
 
-Contributions to the SOLiGence IST platform are welcome. Please feel free to submit pull requests or open issues to discuss proposed changes or report bugs.
+| Metric | Description | Target |
+|--------|-------------|--------|
+| MAE | Mean Absolute Error | Minimize |
+| RMSE | Root Mean Squared Error | Minimize |
+| R² | R-squared coefficient | Maximize |
+| MAPE | Mean Absolute Percentage Error | Minimize |
 
-## License
+## 🤝 Contributing
 
-GNU GENERAL PUBLIC LICENSE
+We welcome contributions! Please follow these steps:
 
-## Contact
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Commit your changes (`git commit -m 'Add some feature'`)
+4. Push to the branch (`git push origin feature/your-feature`)
+5. Open a Pull Request
 
-For any queries regarding this project, please contact Deborah Adedigba at debbydawn16@gmail.com.
+## 📜 License
 
+This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE](LICENSE) file for details.
+
+## 📧 Contact
+
+**Deborah Adedigba**  
+Email: debbydawn16@gmail.com  
+GitHub: [@DeborahAdedigba](https://github.com/DeborahAdedigba)  
+
+Project Link: [https://github.com/DeborahAdedigba/Soligence_App](https://github.com/DeborahAdedigba/Soligence_App)
