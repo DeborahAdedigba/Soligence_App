@@ -627,8 +627,7 @@ def home_section():
     # Main header with logo and tagline
     col1, col2 = st.columns([1, 3])
     with col1:
-        st.image('https://img.freepik.com/free-vector/gradient-stock-market-concept_23-2149166910.jpg', 
-                width=150)
+        st.image("Soli_logo.png", width=150)  # Using your local logo file
     with col2:
         st.title("SOLiGence")
         st.markdown("**Your Intelligent Coin Trading Platform**", unsafe_allow_html=True)
@@ -640,6 +639,9 @@ def home_section():
     .big-font {
         font-size:22px !important;
         color: #4f8bf9;
+        background-color: #f0f0f0;  /* Ash grey background */
+        padding: 15px;
+        border-radius: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -647,16 +649,9 @@ def home_section():
     st.markdown('<p class="big-font">Empower your cryptocurrency trading decisions with AI-driven insights and real-time data.</p>', 
                unsafe_allow_html=True)
     
-    # Action buttons
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🚀 Get Started", key="get_started", help="Begin your trading journey"):
-            st.session_state.show_get_started = True
-    
-    with col2:
-        if st.button("📰 Latest News", key="news_btn", help="Go to news section"):
-            st.query_params["page"] = "NEWS"
-            st.rerun()
+    # Single Get Started button (news button removed)
+    if st.button("🚀 Get Started", key="get_started", help="Begin your trading journey"):
+        st.session_state.show_get_started = True
     
     if st.session_state.get('show_get_started', False):
         # Features showcase
@@ -673,9 +668,6 @@ def home_section():
         for icon, text in features.items():
             st.markdown(f"{icon} **{text}**")
         
-        st.image('https://img.freepik.com/free-vector/gradient-stock-market-concept_23-2149166910.jpg', 
-                use_container_width=True, caption="Advanced Trading Analytics")
-        
         # Testimonials
         st.markdown("---")
         st.header("💬 What Our Users Say")
@@ -684,23 +676,13 @@ def home_section():
         The AI insights helped me make better decisions and increased my returns by 30%. Highly recommended!"
         """)
         
-        # Contact section (email removed)
+        # Contact section
         st.markdown("---")
         st.header("📩 Connect With Us")
         st.markdown("[💼 LinkedIn](https://www.linkedin.com/in/deborah-adedigba-bb917314b/)")
-        st.markdown("[🐦 Twitter](https://twitter.com)")
+        
     
-    # About section (always visible)
-    st.markdown("---")
-    st.header("About SOLiGence")
-    st.write("""
-    SOLiGence (Solent Intelligence) is a leading financial multinational organization specializing in:
-    - Stock and shares analysis
-    - Savings optimization
-    - Investment strategies
-    - Cryptocurrency trading intelligence
-    """)
-
+  
 
 def about_us():
     st.title("About Solent Intelligence Ltd.")
