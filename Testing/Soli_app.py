@@ -1835,152 +1835,92 @@ def find_best_coins(model_type, desired_profit, num_days):
         recommended_coins = sorted_below[:2]
     
     # Display results with improved formatting
-    st.markdown("### Prediction Results")
+    # st.markdown("### Prediction Results")
     
-    # st.markdown("""
-    # <style>
-    # .recommendation-box {
-    #     padding: 20px;
-    #     border-radius: 10px;
-    #     margin-bottom: 20px;
-    #     background-color: #f8f9fa;
-    #     border-left: 5px solid #4e73df;
-    # }
-    # .success-box {
-    #     border-left: 5px solid #1cc88a;
-    # }
-    # .warning-box {
-    #     border-left: 5px solid #f6c23e;
-    # }
-    # .metric-title {
-    #     font-size: 16px;
-    #     color: #5a5c69;
-    #     font-weight: bold;
-    #     margin-bottom: 5px;
-    # }
-    # .metric-value {
-    #     font-size: 24px;
-    #     font-weight: bold;
-    #     margin-bottom: 10px;
-    # }
-    # .profit-positive {
-    #     color: #1cc88a;
-    # }
-    # .profit-negative {
-    #     color: #e74a3b;
-    # }
-    # .price-change {
-    #     font-size: 14px;
-    # }
-    # </style>
-    # """, unsafe_allow_html=True)
-    
-    # Display recommendations
-    def display_recommendation(coin, data, desired_profit, num_days, is_top=True):
-        """Display a recommendation in formatted boxes"""
+    # Display results using the consistent format
+    st.markdown("""
+    <style>
+    .result-box {
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        background-color: #f0f2f6;
+        border-left: 5px solid #4e8cff;
+    }
+    .metric-label {
+        font-size: 14px;
+        color: #555;
+        font-weight: bold;
+    }
+    .metric-value {
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    .price-up {
+        color: #10b981;
+    }
+    .price-down {
+        color: #ef4444;
+    }
+    .profit-box {
+        border-left: 5px solid #f6c23e;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("## Prediction Results")
+
+    for i, (coin, data) in enumerate(recommended_coins[:2]):
         is_positive = data['profit'] >= desired_profit
-        title = "Top Recommendation" if is_top else "Alternative Option"
-        profit_class = "profit-positive" if is_positive else "profit-negative"
-        change_class = "profit-positive" if data['percent_change'] >= 0 else "profit-negative"
+        box_class = "result-box" if is_positive else "result-box profit-box"
         
-        # Full HTML block with proper CSS
-        html = f"""
-        <style>
-        .recommendation-box {{
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-            margin: 1rem 0;
-            background-color: #f8fafc;
-            border-left: 5px solid #4f46e5;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }}
-        .success-box {{
-            border-left-color: #10b981;
-        }}
-        .warning-box {{
-            border-left-color: #f59e0b;
-        }}
-        .metric-title {{
-            font-size: 0.875rem;
-            color: #64748b;
-            font-weight: 600;
-            margin-bottom: 0.25rem;
-        }}
-        .metric-value {{
-            font-size: 1.25rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-            color: #1e293b;
-        }}
-        .profit-positive {{
-            color: #10b981;
-        }}
-        .profit-negative {{
-            color: #ef4444;
-        }}
-        .price-row {{
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 1rem;
-        }}
-        .price-col {{
-            flex: 1;
-        }}
-        </style>
-        
-        <div class="recommendation-box {'success-box' if is_positive else 'warning-box'}">
-            <div class="metric-title">{title}</div>
-            <div class="metric-value">{coin}</div>
-            
-            <div class="price-row">
-                <div class="price-col">
-                    <div class="metric-title">Current Price</div>
-                    <div>${data['current_price']:,.2f}</div>
+        result_html = f"""
+        <div class="{box_class}">
+            <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                    <div class="metric-label">Cryptocurrency</div>
+                    <div class="metric-value">{coin}</div>
                 </div>
-                <div class="price-col">
-                    <div class="metric-title">Predicted Price</div>
-                    <div>${data['future_price']:,.2f}</div>
-                    <div class="{change_class}">({data['percent_change']:+.2f}%)</div>
+                <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                    <div class="metric-label">Current Price</div>
+                    <div class="metric-value">${data['current_price']:.4f}</div>
+                </div>
+                <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                    <div class="metric-label">Predicted Price</div>
+                    <div class="metric-value {'price-up' if data['percent_change'] > 0 else 'price-down'}">${data['future_price']:.4f}</div>
+                    <div>{'▲' if data['percent_change'] > 0 else '▼'} {abs(data['percent_change']):.2f}%</div>
                 </div>
             </div>
-            
-            <div style="margin-bottom: 0.75rem;">
-                <span class="metric-title">Predicted Profit: </span>
-                <span class="{profit_class}">${data['profit']:,.2f}</span>
+            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; margin-top: 15px;">
+                <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                    <div class="metric-label">Predicted Profit</div>
+                    <div class="metric-value {'price-up' if is_positive else 'price-down'}">${data['profit']:.2f}</div>
+                </div>
+                <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                    <div class="metric-label">Target Profit</div>
+                    <div class="metric-value">${desired_profit:.2f}</div>
+                </div>
+                <div style="min-width: 150px; margin-bottom: 15px;">
+                    <div class="metric-label">Time Period</div>
+                    <div class="metric-value">{num_days} days</div>
+                </div>
             </div>
-            
-            <div style="margin-bottom: 0.75rem;">
-                <span class="metric-title">Target Profit: </span>
-                <span>${desired_profit:,.2f}</span>
-            </div>
-            
-            <div style="margin-bottom: 0.75rem;">
-                <span class="metric-title">Time Period: </span>
-                <span>{num_days} days</span>
-            </div>
-            
-            <div>
-                <span class="metric-title">Target Achievement: </span>
-                <span>{((data['profit'] / desired_profit) * 100 if desired_profit != 0 else 0):.1f}%</span>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">
+                    Target Achievement: <span style="color: {'#10b981' if is_positive else '#ef4444'}">
+                    {((data['profit'] / desired_profit) * 100) if desired_profit != 0 else 0:.1f}%</span>
+                </div>
+                <div style="font-style: italic; color: #666;">
+                    Based on {model_type} analysis of {coin}
+                </div>
             </div>
         </div>
         """
         
-        st.markdown(html, unsafe_allow_html=True)
-
-    # In your find_best_coins function, replace the display section with:
-    if recommended_coins:
-        st.markdown("## 📈 Prediction Results")
-        
-        # First recommendation
-        if len(recommended_coins) >= 1:
-            coin, data = recommended_coins[0]
-            display_recommendation(coin, data, desired_profit, num_days, is_top=True)
-        
-        # Second recommendation
-        if len(recommended_coins) >= 2:
-            coin, data = recommended_coins[1]
-            display_recommendation(coin, data, desired_profit, num_days, is_top=False)
+        st.markdown(result_html, unsafe_allow_html=True)
+    
+    st.caption("Note: Predictions are estimates and market conditions can change unexpectedly.")
 
 def get_top_crypto_news(crypto, num_stories=5, news_source='all'):
     if news_source == 'all' or news_source == 'Cryptoslate':
