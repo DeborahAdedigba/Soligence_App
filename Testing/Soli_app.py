@@ -842,35 +842,99 @@ def about_us():
         "challenges that need to be acknowledged.")
 
 def dataset_section():
-    st.header("Crypto Dataset of 30 Coins")
+    """Display and interact with cryptocurrency dataset with improved UI/UX."""
+    
+    # Header section with more context
+    st.header("📊 Cryptocurrency Market Dataset")
+    st.markdown("Explore historical data for 30 major cryptocurrencies.")
     
     if combined_data.empty:
-        st.error("No data available. Please check your data source.")
+        st.error("⚠️ No data available. Please check your data source or connection.")
         return
     
-    st.sidebar.subheader("Dataset Options")
-    sort_column = st.sidebar.multiselect("Sort by:", combined_data.columns)
-    ascending = st.sidebar.checkbox("Ascending", True)
+    # Sidebar controls with better organization
+    with st.sidebar:
+        st.subheader("🔍 Dataset Controls")
+        
+        # Filter section
+        with st.expander("Filter Options", expanded=True):
+            selected_crypto = st.selectbox(
+                "Select cryptocurrency:",
+                ['All'] + sorted(combined_data['Crypto'].unique()),
+                help="Filter data by specific cryptocurrency"
+            )
+        
+        # Sort section
+        with st.expander("Sort Options", expanded=True):
+            sort_column = st.multiselect(
+                "Sort by columns:",
+                combined_data.columns,
+                help="Select columns to sort by (multiple selection supported)"
+            )
+            ascending = st.checkbox("Ascending order", True)
+        
+        # Pagination section
+        with st.expander("Pagination", expanded=True):
+            page_size = st.selectbox(
+                "Items per page:",
+                [10, 25, 50, 100],
+                index=0,
+                help="Number of rows to display per page"
+            )
+            total_pages = max(1, (len(combined_data) + page_size - 1) // page_size)
+            page_number = st.number_input(
+                f"Page number (1-{total_pages}):",
+                min_value=1,
+                max_value=total_pages,
+                value=1
+            )
     
-    sorted_data = combined_data.sort_values(by=sort_column, ascending=ascending)
-    selected_crypto = st.sidebar.selectbox("Filter by cryptocurrency:", ['All'] + list(combined_data['Crypto'].unique()))
+    # Apply filters and sorting
+    filtered_data = combined_data.copy()
     
     if selected_crypto != 'All':
-        sorted_data = sorted_data[sorted_data['Crypto'] == selected_crypto]
+        filtered_data = filtered_data[filtered_data['Crypto'] == selected_crypto]
     
-    page_size = st.sidebar.number_input("Items per page:", min_value=1, value=10)
-    page_number = st.sidebar.number_input("Page number:", min_value=1, value=1)
+    if sort_column:
+        filtered_data = filtered_data.sort_values(by=sort_column, ascending=ascending)
     
+    # Pagination logic
     start_idx = (page_number - 1) * page_size
     end_idx = start_idx + page_size
-    paginated_data = sorted_data.iloc[start_idx:end_idx]
+    paginated_data = filtered_data.iloc[start_idx:end_idx]
     
-    st.subheader("Dataset Overview")
-    st.dataframe(paginated_data)
+    # Display dataset information
+    st.subheader("📈 Data Overview")
+    st.info(f"ℹ️ Showing {len(paginated_data)} of {len(filtered_data)} records")
     
-    if st.checkbox("Show as Table"):
-        st.subheader("Dataset Table View")
+    # Enhanced dataframe display
+    st.dataframe(
+        paginated_data,
+        height=min(600, (len(paginated_data) + 1) * 35),
+        use_container_width=True
+    )
+    
+    # Alternative views
+    view_option = st.radio(
+        "View as:",
+        ["Interactive Table", "Static Table", "Raw Data"],
+        horizontal=True
+    )
+    
+    if view_option == "Static Table":
         st.table(paginated_data)
+    elif view_option == "Raw Data":
+        st.code(paginated_data.to_string())
+    
+    # Download option
+    csv = filtered_data.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download Current View as CSV",
+        data=csv,
+        file_name=f"crypto_data_{selected_crypto.lower() or 'all'}.csv",
+        mime='text/csv',
+        help="Download the filtered dataset as a CSV file"
+    )
 
 def plot_average_price_trend(data, selected_coin, interval):
     selected_coin_data = data[data['Crypto'] == selected_coin]
