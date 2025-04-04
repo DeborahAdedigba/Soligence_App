@@ -1069,8 +1069,8 @@ def plot_coin_scatter():
 
 def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
     """
-    Evaluate machine learning models for a specific cryptocurrency with enhanced visualizations
-    and interactive elements.
+    Evaluate machine learning models for a specific cryptocurrency with enhanced visualizations,
+    interactive elements, and proper key management for Streamlit components.
     """
     try:
         # Validate input data
@@ -1244,10 +1244,10 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
                 label="Download Metrics as CSV",
                 data=csv,
                 file_name=f'{coin_name}_model_metrics.csv',
-                mime='text/csv'
+                mime='text/csv',
+                key=f"dl_metrics_{coin_index}"
             )
 
-        # Model comparison visualization
         # Model comparison visualization
         st.subheader("📈 Model Performance Comparison")
         tab1, tab2 = st.tabs(["Bar Chart", "Radar Chart"])
@@ -1258,7 +1258,7 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
                 "Select metrics to compare:",
                 options=['MAE', 'RMSE', 'R2', 'MAPE'],
                 default=['MAE', 'RMSE', 'R2'],
-                key=f"metrics_compare_{coin_index}"  # Unique key with coin_index
+                key=f"metrics_select_{coin_index}"
             )
             
             for metric in metrics_to_show:
@@ -1305,10 +1305,11 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
 
         # Time Series Visualization
         st.subheader("⏳ Time Series Performance")
-        selected_models = st.multiselect(
+        selected_models_ts = st.multiselect(
             "Select models to display:",
             options=[d['Model'] for d in time_series_data],
-            default=[d['Model'] for d in time_series_data]
+            default=[d['Model'] for d in time_series_data],
+            key=f"model_select_ts_{coin_index}"
         )
         
         fig_ts = go.Figure()
@@ -1325,7 +1326,7 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
         
         # Add predicted values for selected models
         for ts_data in time_series_data:
-            if ts_data['Model'] in selected_models:
+            if ts_data['Model'] in selected_models_ts:
                 fig_ts.add_trace(go.Scatter(
                     x=ts_data['Dates'],
                     y=ts_data['Predicted'],
@@ -1349,10 +1350,17 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
         col1, col2 = st.columns([3, 1])
         
         with col1:
+            selected_models_scatter = st.multiselect(
+                "Select models for scatter plot:",
+                options=[d['Model'] for d in predictions_data],
+                default=[d['Model'] for d in predictions_data],
+                key=f"model_select_scatter_{coin_index}"
+            )
+            
             fig_scatter = go.Figure()
             
             for pred_data in predictions_data:
-                if pred_data['Model'] in selected_models:
+                if pred_data['Model'] in selected_models_scatter:
                     fig_scatter.add_trace(go.Scatter(
                         x=pred_data['Actual'],
                         y=pred_data['Predicted'],
@@ -1363,8 +1371,8 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
                     ))
             
             # Add perfect prediction line
-            min_val = min(y_test.min(), predictions.min())
-            max_val = max(y_test.max(), predictions.max())
+            min_val = min(min(pred_data['Actual']) for pred_data in predictions_data)
+            max_val = max(max(pred_data['Actual']) for pred_data in predictions_data)
             fig_scatter.add_trace(go.Scatter(
                 x=[min_val, max_val],
                 y=[min_val, max_val],
@@ -1391,7 +1399,8 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
                 "Download Plot Data",
                 pd.DataFrame(predictions_data).to_csv().encode('utf-8'),
                 file_name=f'{coin_name}_prediction_data.csv',
-                mime='text/csv'
+                mime='text/csv',
+                key=f"dl_pred_data_{coin_index}"
             )
 
         # Show retrained notice if applicable
