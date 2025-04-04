@@ -91,21 +91,21 @@ def initialize_session_state():
         st.session_state.last_update = time.time()
 
 # Version checking
-def check_versions():
-    required = {
-        'scikit-learn': '1.6.1',
-        'xgboost': '3.0.0',
-        'tensorflow': '2.19.0',
-        'joblib': '1.4.2'
-    }
+# def check_versions():
+#     required = {
+#         'scikit-learn': '1.6.1',
+#         'xgboost': '3.0.0',
+#         'tensorflow': '2.19.0',
+#         'joblib': '1.4.2'
+#     }
     
-    for pkg, req_ver in required.items():
-        try:
-            current_ver = globals()[f"{pkg.replace('-', '_')}_version"]
-            if current_ver != req_ver:
-                logging.warning(f"Version mismatch for {pkg}: installed {current_ver}, expected {req_ver}")
-        except Exception as e:
-            logging.error(f"Version check failed for {pkg}: {str(e)}")
+#     for pkg, req_ver in required.items():
+#         try:
+#             current_ver = globals()[f"{pkg.replace('-', '_')}_version"]
+#             if current_ver != req_ver:
+#                 logging.warning(f"Version mismatch for {pkg}: installed {current_ver}, expected {req_ver}")
+#         except Exception as e:
+#             logging.error(f"Version check failed for {pkg}: {str(e)}")
 
 # Training functions
 
