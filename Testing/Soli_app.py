@@ -1837,43 +1837,43 @@ def find_best_coins(model_type, desired_profit, num_days):
     # Display results with improved formatting
     st.markdown("### Prediction Results")
     
-    st.markdown("""
-    <style>
-    .recommendation-box {
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        background-color: #f8f9fa;
-        border-left: 5px solid #4e73df;
-    }
-    .success-box {
-        border-left: 5px solid #1cc88a;
-    }
-    .warning-box {
-        border-left: 5px solid #f6c23e;
-    }
-    .metric-title {
-        font-size: 16px;
-        color: #5a5c69;
-        font-weight: bold;
-        margin-bottom: 5px;
-    }
-    .metric-value {
-        font-size: 24px;
-        font-weight: bold;
-        margin-bottom: 10px;
-    }
-    .profit-positive {
-        color: #1cc88a;
-    }
-    .profit-negative {
-        color: #e74a3b;
-    }
-    .price-change {
-        font-size: 14px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # st.markdown("""
+    # <style>
+    # .recommendation-box {
+    #     padding: 20px;
+    #     border-radius: 10px;
+    #     margin-bottom: 20px;
+    #     background-color: #f8f9fa;
+    #     border-left: 5px solid #4e73df;
+    # }
+    # .success-box {
+    #     border-left: 5px solid #1cc88a;
+    # }
+    # .warning-box {
+    #     border-left: 5px solid #f6c23e;
+    # }
+    # .metric-title {
+    #     font-size: 16px;
+    #     color: #5a5c69;
+    #     font-weight: bold;
+    #     margin-bottom: 5px;
+    # }
+    # .metric-value {
+    #     font-size: 24px;
+    #     font-weight: bold;
+    #     margin-bottom: 10px;
+    # }
+    # .profit-positive {
+    #     color: #1cc88a;
+    # }
+    # .profit-negative {
+    #     color: #e74a3b;
+    # }
+    # .price-change {
+    #     font-size: 14px;
+    # }
+    # </style>
+    # """, unsafe_allow_html=True)
     
     # Display recommendations
     def display_recommendation(coin, data, desired_profit, num_days, is_top=True):
