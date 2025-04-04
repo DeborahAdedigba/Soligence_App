@@ -639,7 +639,7 @@ def home_section():
     <style>
     .big-font {
         font-size:22px !important;
-        color: #4f8bf9;
+        
     }
     </style>
     """, unsafe_allow_html=True)
@@ -655,7 +655,8 @@ def home_section():
     
     with col2:
         if st.button("📰 Latest News", key="news_btn", help="Go to news section"):
-            st.session_state.page = "NEWS"
+            st.experimental_set_query_params(page="NEWS")
+            st.rerun()
     
     if st.session_state.get('show_get_started', False):
         # Features showcase
@@ -683,16 +684,22 @@ def home_section():
         The AI insights helped me make better decisions and increased my returns by 30%. Highly recommended!"
         """)
         
-        # Contact section
+        # Contact section (email removed)
         st.markdown("---")
-        st.header("📩 Contact Us")
-        contact_col1, contact_col2 = st.columns(2)
-        with contact_col1:
-            st.subheader("Email")
-            st.write("[📧 Email](debbydawn16@gmail.com)")
-        with contact_col2:
-            st.subheader("Social Media")
-            st.markdown("[💼 LinkedIn](https://www.linkedin.com/in/deborah-adedigba-bb917314b/)")
+        st.header("📩 Connect With Us")
+        st.markdown("[💼 LinkedIn](https://www.linkedin.com/in/deborah-adedigba-bb917314b/)")
+        st.markdown("[🐦 Twitter](https://twitter.com)")
+    
+    # About section (always visible)
+    st.markdown("---")
+    st.header("About SOLiGence")
+    st.write("""
+    SOLiGence (Solent Intelligence) is a leading financial multinational organization specializing in:
+    - Stock and shares analysis
+    - Savings optimization
+    - Investment strategies
+    - Cryptocurrency trading intelligence
+    """)
 
 
 def about_us():
