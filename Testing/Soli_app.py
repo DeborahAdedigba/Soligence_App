@@ -639,7 +639,7 @@ def home_section():
     <style>
     .big-font {
         font-size:22px !important;
-        
+        color: #4f8bf9;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -655,7 +655,7 @@ def home_section():
     
     with col2:
         if st.button("📰 Latest News", key="news_btn", help="Go to news section"):
-            st.experimental_set_query_params(page="NEWS")
+            st.query_params["page"] = "NEWS"
             st.rerun()
     
     if st.session_state.get('show_get_started', False):
