@@ -819,8 +819,7 @@ def home_section():
                     <button style="background-color: #0077b5; color: white; border: none; padding: 0.5rem 1rem; border-radius: 5px; margin-right: 0.5rem;">
                         LinkedIn
                     </button>
-                
-                </a>
+              
             </div>
             """, unsafe_allow_html=True)
             
