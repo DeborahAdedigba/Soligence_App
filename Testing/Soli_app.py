@@ -1007,23 +1007,147 @@ def visualize_crypto_data():
 
 def analyze_coin_correlation():
     if combined_data.empty:
-        st.error("No data available.")
+        st.warning("⚠️ No data available. Please load data first.")
         return
     
+    # Create pivot table and get coin list
     pivoted_data = combined_data.pivot(columns='Crypto', values='Close')
     coins_list = pivoted_data.columns.tolist()
     
-    coin_selected = st.selectbox("Select coin:", coins_list)
+    # Add section header and description
+    st.header("🔗 Cryptocurrency Correlation Analysis")
+    st.markdown("Explore how different cryptocurrencies move in relation to each other")
+    
+    # Create two columns for layout
+    col1, col2 = st.columns([1, 3])
+    
+    with col1:
+        # Improved selectbox with custom styling
+        coin_selected = st.selectbox(
+            "Select a cryptocurrency:",
+            coins_list,
+            index=0,
+            key="corr_coin_select",
+            help="Select a coin to see its correlation with others"
+        )
+        
+        # Add some metrics about the selected coin
+        st.metric(
+            f"Selected: {coin_selected}",
+            value=f"${pivoted_data[coin_selected].iloc[-1]:,.2f}",
+            delta=f"{pivoted_data[coin_selected].pct_change().iloc[-1]*100:.2f}% (24h)"
+        )
+    
+    # Calculate correlations
     selected_coin_prices = pivoted_data[coin_selected]
     correlations = pivoted_data.corrwith(selected_coin_prices)
     sorted_correlations = correlations.sort_values(ascending=False)
     sorted_correlations = sorted_correlations.drop(coin_selected)
     
-    st.write(f"Top positively correlated with {coin_selected}:")
-    st.write(sorted_correlations.head(4))
+    with col2:
+        # Visualize correlations with a bar chart
+        fig = go.Figure()
+        
+        # Add positive correlations
+        fig.add_trace(
+            go.Bar(
+                x=sorted_correlations.head(10).index,
+                y=sorted_correlations.head(10),
+                name='Positive Correlation',
+                marker_color='#2ca02c',
+                hovertemplate="%{x}<br>Correlation: %{y:.2f}<extra></extra>"
+            )
+        )
+        
+        # Add negative correlations
+        fig.add_trace(
+            go.Bar(
+                x=sorted_correlations.tail(10).index,
+                y=sorted_correlations.tail(10),
+                name='Negative Correlation',
+                marker_color='#d62728',
+                hovertemplate="%{x}<br>Correlation: %{y:.2f}<extra></extra>"
+            )
+        )
+        
+        fig.update_layout(
+            title=f'Correlation with {coin_selected}',
+            xaxis_title='Cryptocurrency',
+            yaxis_title='Correlation Coefficient',
+            yaxis_range=[-1, 1],
+            hovermode='x unified',
+            showlegend=False,
+            height=500,
+            plot_bgcolor='rgba(240,240,240,0.8)'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
     
-    st.write(f"Top negatively correlated with {coin_selected}:")
-    st.write(sorted_correlations.tail(4))
+    # Create expandable sections for detailed tables
+    with st.expander("📊 Detailed Correlation Data", expanded=False):
+        tab1, tab2 = st.tabs(["Top Positive Correlations", "Top Negative Correlations"])
+        
+        with tab1:
+            st.subheader(f"Top 5 Positive Correlations with {coin_selected}")
+            top_positive = sorted_correlations.head(5).reset_index()
+            top_positive.columns = ['Cryptocurrency', 'Correlation']
+            st.dataframe(
+                top_positive.style.format({'Correlation': '{:.3f}'}),
+                hide_index=True
+            )
+            
+        with tab2:
+            st.subheader(f"Top 5 Negative Correlations with {coin_selected}")
+            top_negative = sorted_correlations.tail(5).reset_index()
+            top_negative.columns = ['Cryptocurrency', 'Correlation']
+            st.dataframe(
+                top_negative.sort_values('Correlation').style.format({'Correlation': '{:.3f}'}),
+                hide_index=True
+            )
+    
+    # Add scatter plot of strongest correlations
+    st.subheader("🔍 Correlation Relationships")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        strongest_positive = sorted_correlations.index[0]
+        fig_pos = go.Figure()
+        fig_pos.add_trace(
+            go.Scatter(
+                x=pivoted_data[coin_selected],
+                y=pivoted_data[strongest_positive],
+                mode='markers',
+                name=f'{coin_selected} vs {strongest_positive}',
+                marker=dict(color='#2ca02c', opacity=0.6)
+            )
+        )
+        fig_pos.update_layout(
+            title=f'Strongest Positive: {strongest_positive} (ρ={sorted_correlations[0]:.2f})',
+            xaxis_title=coin_selected,
+            yaxis_title=strongest_positive,
+            height=400
+        )
+        st.plotly_chart(fig_pos, use_container_width=True)
+    
+    with col2:
+        strongest_negative = sorted_correlations.index[-1]
+        fig_neg = go.Figure()
+        fig_neg.add_trace(
+            go.Scatter(
+                x=pivoted_data[coin_selected],
+                y=pivoted_data[strongest_negative],
+                mode='markers',
+                name=f'{coin_selected} vs {strongest_negative}',
+                marker=dict(color='#d62728', opacity=0.6)
+            )
+        )
+        fig_neg.update_layout(
+            title=f'Strongest Negative: {strongest_negative} (ρ={sorted_correlations[-1]:.2f})',
+            xaxis_title=coin_selected,
+            yaxis_title=strongest_negative,
+            height=400
+        )
+        st.plotly_chart(fig_neg, use_container_width=True)
 
 def plot_moving_average():
     available_coins = combined_data['Crypto'].unique()
