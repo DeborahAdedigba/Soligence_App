@@ -2070,7 +2070,7 @@ def main():
                 if st.button("Generate Prediction", key="ma_predict_btn", 
                             help="Generate buy/sell recommendation based on moving averages"):
                     with st.spinner("Analyzing market trends with Moving Averages..."):
-                        determine_best_time_to_trade_future(coin, days)
+                        determine_best_time_to_trade_future(coin, days, combined_data)
             
             else:  # Machine Learning Models
                 create_prediction_interface(selected_data)
