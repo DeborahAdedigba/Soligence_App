@@ -1876,51 +1876,101 @@ def find_best_coins(model_type, desired_profit, num_days):
     """, unsafe_allow_html=True)
     
     # Display recommendations
-    # Display recommendations
     def display_recommendation(coin, data, desired_profit, num_days, is_top=True):
-        """Display a recommendation using Streamlit components"""
+        """Display a recommendation in formatted boxes"""
         is_positive = data['profit'] >= desired_profit
-        title = "🔥 Top Recommendation" if is_top else "💡 Alternative Option"
+        title = "Top Recommendation" if is_top else "Alternative Option"
+        profit_class = "profit-positive" if is_positive else "profit-negative"
+        change_class = "profit-positive" if data['percent_change'] >= 0 else "profit-negative"
         
-        # Create container with border
-        with st.container():
-            st.markdown(f"### {title}")
-            st.markdown(f"#### {coin}")
+        # Full HTML block with proper CSS
+        html = f"""
+        <style>
+        .recommendation-box {{
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+            background-color: #f8fafc;
+            border-left: 5px solid #4f46e5;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }}
+        .success-box {{
+            border-left-color: #10b981;
+        }}
+        .warning-box {{
+            border-left-color: #f59e0b;
+        }}
+        .metric-title {{
+            font-size: 0.875rem;
+            color: #64748b;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }}
+        .metric-value {{
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: #1e293b;
+        }}
+        .profit-positive {{
+            color: #10b981;
+        }}
+        .profit-negative {{
+            color: #ef4444;
+        }}
+        .price-row {{
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }}
+        .price-col {{
+            flex: 1;
+        }}
+        </style>
+        
+        <div class="recommendation-box {'success-box' if is_positive else 'warning-box'}">
+            <div class="metric-title">{title}</div>
+            <div class="metric-value">{coin}</div>
             
-            # Current and predicted price in columns
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("**Current Price**")
-                st.markdown(f"${data['current_price']:,.2f}")
-            with col2:
-                st.markdown("**Predicted Price**")
-                color = "green" if data['percent_change'] >= 0 else "red"
-                st.markdown(f"${data['future_price']:,.2f} <span style='color:{color}'>({data['percent_change']:+.2f}%)</span>", 
-                        unsafe_allow_html=True)
+            <div class="price-row">
+                <div class="price-col">
+                    <div class="metric-title">Current Price</div>
+                    <div>${data['current_price']:,.2f}</div>
+                </div>
+                <div class="price-col">
+                    <div class="metric-title">Predicted Price</div>
+                    <div>${data['future_price']:,.2f}</div>
+                    <div class="{change_class}">({data['percent_change']:+.2f}%)</div>
+                </div>
+            </div>
             
-            # Profit information
-            profit_color = "green" if is_positive else "red"
-            st.markdown("**Predicted Profit**")
-            st.markdown(f"<span style='color:{profit_color}'>${data['profit']:,.2f}</span>", 
-                    unsafe_allow_html=True)
+            <div style="margin-bottom: 0.75rem;">
+                <span class="metric-title">Predicted Profit: </span>
+                <span class="{profit_class}">${data['profit']:,.2f}</span>
+            </div>
             
-            # Target and time period
-            st.markdown("**Target Profit**")
-            st.markdown(f"${desired_profit:,.2f}")
+            <div style="margin-bottom: 0.75rem;">
+                <span class="metric-title">Target Profit: </span>
+                <span>${desired_profit:,.2f}</span>
+            </div>
             
-            st.markdown("**Time Period**")
-            st.markdown(f"{num_days} days")
+            <div style="margin-bottom: 0.75rem;">
+                <span class="metric-title">Time Period: </span>
+                <span>{num_days} days</span>
+            </div>
             
-            # Target achievement
-            achievement = (data['profit'] / desired_profit) * 100 if desired_profit != 0 else 0
-            st.markdown("**Target Achievement**")
-            st.markdown(f"{achievement:.1f}%")
-            
-            st.markdown("---")
+            <div>
+                <span class="metric-title">Target Achievement: </span>
+                <span>{((data['profit'] / desired_profit) * 100 if desired_profit != 0 else 0):.1f}%</span>
+            </div>
+        </div>
+        """
+        
+        st.markdown(html, unsafe_allow_html=True)
 
     # In your find_best_coins function, replace the display section with:
     if recommended_coins:
-        st.markdown("## Prediction Results")
+        st.markdown("## 📈 Prediction Results")
         
         # First recommendation
         if len(recommended_coins) >= 1:
