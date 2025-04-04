@@ -30,6 +30,7 @@ from scipy.stats import gaussian_kde
 import threading
 import time
 import pickle
+import plotly.express as px  
 import yfinance as yf
 from plotly.subplots import make_subplots
 from joblib import Memory
