@@ -1763,25 +1763,32 @@ def find_best_coins(model_type, desired_profit, num_days):
     # Make predictions for all coins
     for coin, model in models.items():
         try:
-            # Get percentage change prediction (assuming model outputs decimal change)
-            if model_type == 'LSTM':
-                input_data = np.array([[num_days, 0, 0]]).reshape(1, 3, 1)
-                predicted_change = model.predict(input_data)[0][0]
+            # Get the predicted price directly (same method as single-coin prediction)
+            features = [f'{coin}_lag_{lag}' for lag in range(1, 4)]
+            
+            data_copy = selected_data.copy()
+            for lag in range(1, 4):
+                lag_col = f'{coin}_lag_{lag}'
+                if lag_col not in data_copy.columns:
+                    data_copy[lag_col] = data_copy[coin].shift(lag)
+            
+            selected_data_clean = data_copy.dropna(subset=features)
+            
+            if len(selected_data_clean) == 0:
+                st.warning(f"Not enough historical data for {coin}")
+                continue
+            
+            X_array = selected_data_clean[features].to_numpy()
+            
+            if model_type == "LSTM":
+                X_today = X_array[-1].reshape(1, len(features), 1)
+                future_price = model.predict(X_today)[0][0]
             else:
-                input_data = np.array([[num_days, 0, 0]])
-                predicted_change = model.predict(input_data)[0]
+                X_today = X_array[-1].reshape(1, -1)
+                future_price = model.predict(X_today)[0]
             
-            # Convert prediction to percentage (assuming model outputs decimal)
-            percent_change = predicted_change * 100  # Convert decimal to percentage
-            
-            # Validate the prediction is reasonable
-            if abs(percent_change) > 100:  # If prediction > 100% change
-                st.warning(f"Unrealistic prediction for {coin} ({percent_change:.2f}%). Clamping to ±30%.")
-                percent_change = 30 if percent_change > 0 else -30
-            
-            # Calculate actual profit based on current price
             current_price = current_prices[coin]
-            future_price = current_price * (1 + percent_change/100)
+            percent_change = ((future_price - current_price) / current_price) * 100
             potential_profit = future_price - current_price
             
             predictions[coin] = {
@@ -1790,6 +1797,7 @@ def find_best_coins(model_type, desired_profit, num_days):
                 'current_price': current_price,
                 'future_price': future_price
             }
+            
         except Exception as e:
             st.warning(f"Error predicting for {coin}: {str(e)}")
     
