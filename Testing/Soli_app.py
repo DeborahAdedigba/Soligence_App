@@ -1426,8 +1426,16 @@ def apply_ma_trading_strategy(chosen_coin):
 from datetime import datetime, timedelta
 import pandas as pd
 from ta.trend import SMAIndicator
+import os
+import joblib
+import pandas as pd
+import streamlit as st
+from datetime import datetime, timedelta
+from tensorflow.keras.models import load_model
+from ta.trend import SMAIndicator
 
 def forecast_price(selected_data, chosen_coin, num_days):
+    """Forecast future price using moving average strategy"""
     future_date = datetime.now() + timedelta(days=num_days)
     future_date = future_date.replace(tzinfo=None)
     
@@ -1448,100 +1456,8 @@ def forecast_price(selected_data, chosen_coin, num_days):
     
     return None, None
 
-def determine_best_time_to_trade_future(chosen_coin, num_days):
-    selected_data = apply_ma_trading_strategy(chosen_coin)
-    future_price, future_date = forecast_price(selected_data, chosen_coin, num_days)
-    
-    if future_price is not None:
-        current_price = selected_data['Close'].iloc[-1]
-        price_change = future_price - current_price
-        percentage_change = (price_change / current_price) * 100
-        action = "Buy" if future_price > current_price else "Sell"
-        confidence = "Strong" if abs(percentage_change) > 5 else "Moderate" if abs(percentage_change) > 2 else "Weak"
-        
-        # Style the results box
-        st.markdown("""
-        <style>
-        .result-box {
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            background-color: #f0f2f6;
-            border-left: 5px solid #4e8cff;
-        }
-        .metric-label {
-            font-size: 14px;
-            color: #555;
-            font-weight: bold;
-        }
-        .metric-value {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        .price-up {
-            color: #10b981;
-        }
-        .price-down {
-            color: #ef4444;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # Format the results in a nice box
-        result_html = f"""
-        <div class="result-box">
-            <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
-                <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
-                    <div class="metric-label">Current Price</div>
-                    <div class="metric-value">${current_price:.4f}</div>
-                </div>
-                <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
-                    <div class="metric-label">Predicted Price</div>
-                    <div class="metric-value {'price-up' if price_change > 0 else 'price-down'}">${future_price:.4f}</div>
-                    <div>{'▲' if price_change > 0 else '▼'} {abs(percentage_change):.2f}%</div>
-                </div>
-                <div style="min-width: 150px; margin-bottom: 15px;">
-                    <div class="metric-label">Forecast Date</div>
-                    <div class="metric-value">{future_date.strftime('%Y-%m-%d')}</div>
-                    <div>({num_days} days ahead)</div>
-                </div>
-            </div>
-            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">
-                    Recommendation: <span style="color: {'#10b981' if action == 'Buy' else '#ef4444'}">{action}</span> with {confidence} confidence
-                </div>
-                <div style="font-style: italic; color: #666;">
-                    Based on moving average analysis of {chosen_coin}'s historical data
-                </div>
-            </div>
-        </div>
-        """
-        
-        st.markdown(result_html, unsafe_allow_html=True)
-        
-        # Display uncertainty disclaimer
-        st.caption("Note: This forecast is an estimate and market conditions can change unexpectedly.")
-    else:
-        st.write("Unable to forecast price.")
-    
-    return selected_data
-
-import streamlit as st
-import os
-import joblib
-import logging
-import numpy as np
-from datetime import datetime, timedelta
-from tensorflow.keras.models import load_model
-
-import os
-import joblib
-import streamlit as st
-from datetime import datetime, timedelta
-from tensorflow.keras.models import load_model
-
 def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
+    """Forecast future price using machine learning models"""
     try:
         if chosen_coin not in selected_data.columns:
             st.error(f"Selected coin '{chosen_coin}' not found in data")
@@ -1608,7 +1524,14 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
         st.error(f"Error in price forecasting: {str(e)}")
         return None, None
 
+def apply_ma_trading_strategy(chosen_coin):
+    """Apply moving average strategy to selected coin data"""
+    # This is a placeholder - implement your actual data loading logic here
+    # Should return a DataFrame with 'Close' column and datetime index
+    return pd.DataFrame()
+
 def create_prediction_interface(selected_data):
+    """Create the unified prediction interface with both methods"""
     st.markdown("## Cryptocurrency Price Prediction")
     
     with st.form(key="prediction_form"):
@@ -1619,9 +1542,9 @@ def create_prediction_interface(selected_data):
             chosen_coin = st.selectbox("Select Cryptocurrency", options=available_coins)
         
         with col2:
-            model_type = st.selectbox(
-                "Select Model Type",
-                options=["SVR", "GBR", "XGBoost", "LSTM"]
+            analysis_method = st.selectbox(
+                "Select Analysis Method",
+                options=["SVR", "GBR", "XGBoost", "LSTM", "Moving Average"]
             )
         
         with col3:
@@ -1636,10 +1559,25 @@ def create_prediction_interface(selected_data):
         
         if predict_button:
             with st.spinner("Analyzing market data..."):
-                future_price, future_date = forecast_price_with_model(chosen_coin, num_days, model_type, selected_data)
+                if analysis_method == "Moving Average":
+                    # Use MA-based forecasting
+                    selected_data_ma = apply_ma_trading_strategy(chosen_coin)
+                    future_price, future_date = forecast_price(selected_data_ma, chosen_coin, num_days)
+                    
+                    if future_price is not None:
+                        current_price = selected_data_ma['Close'].iloc[-1]
+                        analysis_description = f"Based on moving average analysis of {chosen_coin}'s historical data"
+                else:
+                    # Use model-based forecasting
+                    future_price, future_date = forecast_price_with_model(
+                        chosen_coin, num_days, analysis_method, selected_data
+                    )
+                    
+                    if future_price is not None:
+                        current_price = selected_data[chosen_coin].iloc[-1]
+                        analysis_description = f"Based on {analysis_method} model analysis of {chosen_coin}'s historical data"
                 
                 if future_price is not None:
-                    current_price = selected_data[chosen_coin].iloc[-1]
                     price_change = future_price - current_price
                     percentage_change = (price_change / current_price) * 100
                     action = "Buy" if future_price > current_price else "Sell"
@@ -1696,7 +1634,7 @@ def create_prediction_interface(selected_data):
                                 Recommendation: <span style="color: {'#10b981' if action == 'Buy' else '#ef4444'}">{action}</span> with {confidence} confidence
                             </div>
                             <div style="font-style: italic; color: #666;">
-                                Based on historical data and predictive analysis of {chosen_coin}
+                                {analysis_description}
                             </div>
                         </div>
                     </div>
@@ -1706,7 +1644,6 @@ def create_prediction_interface(selected_data):
                     st.caption("Note: This forecast is an estimate and market conditions can change unexpectedly.")
                 else:
                     st.write("Unable to forecast price.")
-
     
 # getting best coins   
 def find_best_coins(model_type, desired_profit, num_days):
@@ -2025,15 +1962,37 @@ def main():
                 coin_index = selected_data.columns.get_loc(coin)
                 evaluate_and_plot_model(coin_index, model, frequency, periods)
         elif prediction_option == "Buy and Sell Prediction":
-            strategy = st.sidebar.radio("Strategy:", ["Moving Averages", "Models"])
+            strategy = st.sidebar.radio(
+                "Select Prediction Strategy:",
+                ["Moving Averages", "Machine Learning Models"],
+                help="Choose between technical indicators or AI models for predictions"
+            )
+            
+            st.markdown("### Buy/Sell Recommendation Prediction")
             
             if strategy == "Moving Averages":
-                coin = st.selectbox("Select coin:", selected_data.columns)
-                days = st.number_input("Days ahead:", min_value=1, value=10)
-                determine_best_time_to_trade_future(coin, days)
-            else:
-                # 
-                create_prediction_interface(selected_data) 
+                col1, col2 = st.columns(2)
+                with col1:
+                    coin = st.selectbox(
+                        "Select Cryptocurrency:", 
+                        selected_data.columns,
+                        key="ma_coin_select"
+                    )
+                with col2:
+                    days = st.number_input(
+                        "Forecast Period (days):",
+                        min_value=1, 
+                        max_value=30,
+                        value=10,
+                        key="ma_days_input"
+                    )
+                
+                if st.button("Generate MA Prediction", key="ma_predict_btn"):
+                    with st.spinner("Calculating Moving Averages..."):
+                        determine_best_time_to_trade_future(coin, days)
+            
+            else:  # Machine Learning Models
+                create_prediction_interface(selected_data)
         elif prediction_option == "Predict coin by Profit":
             model_type = st.selectbox("Select model:", ['Gradient_Boosting', 'SVR', 'Xgboost', 'LSTM'])
             profit = st.number_input("Desired profit:", value=100)
