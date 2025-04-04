@@ -1308,8 +1308,7 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
         selected_models = st.multiselect(
             "Select models to display:",
             options=[d['Model'] for d in time_series_data],
-            default=[d['Model'] for d in time_series_data],
-            key=f"model_select_ts_{coin_index}"  # Unique key with coin_index
+            default=[d['Model'] for d in time_series_data]
         )
         
         fig_ts = go.Figure()
