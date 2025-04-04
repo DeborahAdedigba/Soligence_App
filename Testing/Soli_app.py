@@ -1253,38 +1253,118 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
         st.error(f"An unexpected error occurred: {str(e)}")
         st.error("Please check your data and model files")
 
-def plot_actual_forecast_with_confidence(actual, predictions, periods, upper_bound, lower_bound):
+def plot_actual_forecast_with_confidence(actual, predictions, periods, upper_bound, lower_bound, coin_name, model_name):
+    """Enhanced visualization of actual vs predicted values with confidence interval"""
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=periods, y=actual, mode='lines', name='Actual', line=dict(color='green')))
-    fig.add_trace(go.Scatter(x=periods, y=predictions, mode='lines', name='Forecast', line=dict(color='red')))
-    fig.add_trace(go.Scatter(x=periods, y=upper_bound, mode='lines', name='Upper Bound', line=dict(color='blue', width=0)))
-    fig.add_trace(go.Scatter(x=periods, y=lower_bound, mode='lines', name='Lower Bound', fill='tonexty', line=dict(color='blue')))
     
-    fig.update_layout(title="Actual vs Forecast with Confidence",
-                    xaxis_title='Date',
-                    yaxis_title='Price')
-    st.plotly_chart(fig)
+    # Main traces
+    fig.add_trace(go.Scatter(
+        x=periods, y=actual, 
+        mode='lines+markers', 
+        name='Actual', 
+        line=dict(color='#2ca02c', width=2),
+        marker=dict(size=6)
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=periods, y=predictions, 
+        mode='lines+markers', 
+        name='Forecast', 
+        line=dict(color='#d62728', width=2, dash='dot'),
+        marker=dict(size=6, symbol='diamond')
+    ))
+    
+    # Confidence interval
+    fig.add_trace(go.Scatter(
+        x=periods, y=upper_bound, 
+        mode='lines', 
+        name='Upper Bound (95%)', 
+        line=dict(color='#1f77b4', width=1, dash='dash'),
+        opacity=0.3
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=periods, y=lower_bound, 
+        mode='lines', 
+        name='Lower Bound (95%)', 
+        fill='tonexty', 
+        line=dict(color='#1f77b4', width=1, dash='dash'),
+        opacity=0.3
+    ))
+    
+    fig.update_layout(
+        title=f"{coin_name} - Actual vs Forecast ({model_name})",
+        xaxis_title='Date',
+        yaxis_title='Price',
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        template="plotly_white",
+        margin=dict(l=20, r=20, t=60, b=20)
+    
+    # Add shaded area for confidence interval
+    fig.update_layout(
+        annotations=[
+            dict(
+                xref="paper", yref="paper",
+                x=0.02, y=0.98,
+                text="95% Confidence Interval",
+                showarrow=False,
+                font=dict(size=10, color="#1f77b4"),
+                bgcolor="white",
+                opacity=0.8
+            )
+        ]
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
 
-def evaluate_and_plot_model(coin_index, model_choice, frequency, num_periods):
+def create_forecast_table(predictions, periods, upper_bound, lower_bound):
+    """Create a styled DataFrame with forecast results"""
+    forecast_df = pd.DataFrame({
+        'Date': periods,
+        'Forecast': predictions,
+        'Lower Bound': lower_bound,
+        'Upper Bound': upper_bound,
+        'Confidence Range': upper_bound - lower_bound
+    })
+    
+    forecast_df['Date'] = forecast_df['Date'].dt.strftime('%Y-%m-%d')
+    
+    return forecast_df
+
+def evaluate_and_plot_model(coin_index, model_choice, frequency, num_periods, selected_data):
+    """
+    Main function to evaluate model and plot results with enhanced error handling
+    and visualization
+    """
     if selected_data.empty:
         st.error("No selected coins data available.")
         return
     
     coin_name = selected_data.columns[coin_index]
     
-    for lag in range(1, 4):
-        selected_data[f'{coin_name}_lag_{lag}'] = selected_data[coin_name].shift(lag)
+    # Data preparation
+    try:
+        # Create lag features
+        for lag in range(1, 4):
+            selected_data[f'{coin_name}_lag_{lag}'] = selected_data[coin_name].shift(lag)
+        
+        selected_data.dropna(inplace=True)
+        
+        features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
+        X = selected_data[features]
+        y = selected_data[coin_name]
+        
+        # Train-test split (keeping temporal order)
+        test_size = int(len(X) * 0.2)
+        X_train, X_test = X[:-test_size], X[-test_size:]
+        y_train, y_test = y[:-test_size], y[-test_size:]
+        
+    except Exception as e:
+        st.error(f"Error in data preparation: {str(e)}")
+        return
     
-    selected_data.dropna(inplace=True)
-    features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
-    X = selected_data[features]
-    y = selected_data[coin_name]
-    
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    model_filename = f"trained_models/Model_SELECTED_COIN_{coin_index+1}/"
-    
-    # Create a mapping between display names and actual filenames
+    # Model loading and prediction
     model_mapping = {
         'Gradient Boosting': 'gradient_boosting_model.pkl',
         'SVR': 'svr_model.pkl',
@@ -1292,51 +1372,93 @@ def evaluate_and_plot_model(coin_index, model_choice, frequency, num_periods):
         'LSTM': 'lstm_model.keras'
     }
     
-    if model_choice in model_mapping:
-        model_filename += model_mapping[model_choice]
-        
+    model_filename = os.path.join(
+        "trained_models", 
+        f"Model_SELECTED_COIN_{coin_index+1}", 
+        model_mapping.get(model_choice, "")
+    )
+    
+    if not os.path.exists(model_filename):
+        st.error(f"Model file not found at: {model_filename}")
+        return
+    
+    try:
         if model_choice == 'LSTM':
-            if os.path.exists(model_filename):
-                model = load_model(model_filename)
-                X_array = X.to_numpy().reshape(X.shape[0], X.shape[1], 1)
-                predictions = model.predict(X_array[-num_periods:]).flatten()
-            else:
-                st.error("LSTM model not found.")
-                return
+            model = load_model(model_filename)
+            X_array = X.to_numpy().reshape(X.shape[0], X.shape[1], 1)
+            predictions = model.predict(X_array[-num_periods:]).flatten()
         else:
-            if os.path.exists(model_filename):
-                model = joblib.load(model_filename)
-                predictions = model.predict(X[-num_periods:])
-            else:
-                st.error(f"{model_choice} model not found at {model_filename}")
-                return
-    else:
-        st.error("Invalid model selection.")
+            model = joblib.load(model_filename)
+            predictions = model.predict(X[-num_periods:])
+    except Exception as e:
+        st.error(f"Error loading or predicting with model: {str(e)}")
         return
     
-    # .
+    # Generate forecast periods
+    freq_mapping = {
+        'daily': 'D',
+        'weekly': 'W',
+        'monthly': 'M',
+        'quarterly': 'Q'
+    }
+    
     last_date = selected_data.index[-1]
-    if frequency == 'daily':
-        periods = pd.date_range(start=last_date, periods=num_periods, freq='D')
-    elif frequency == 'weekly':
-        periods = pd.date_range(start=last_date, periods=num_periods, freq='W')
-    elif frequency == 'monthly':
-        periods = pd.date_range(start=last_date, periods=num_periods, freq='M')
-    elif frequency == 'quarterly':
-        periods = pd.date_range(start=last_date, periods=num_periods, freq='Q')
-    else:
-        st.error("Invalid frequency.")
+    try:
+        periods = pd.date_range(
+            start=last_date, 
+            periods=num_periods, 
+            freq=freq_mapping.get(frequency, 'D')
+        )
+    except Exception as e:
+        st.error(f"Error generating date range: {str(e)}")
         return
     
-    mse = mean_squared_error(y_test[-num_periods:], predictions)
-    upper_bound = predictions + 1.96 * np.sqrt(mse)
-    lower_bound = predictions - 1.96 * np.sqrt(mse)
+    # Calculate confidence intervals
+    try:
+        mse = mean_squared_error(y_test[-num_periods:], predictions)
+        upper_bound = predictions + 1.96 * np.sqrt(mse)
+        lower_bound = predictions - 1.96 * np.sqrt(mse)
+    except Exception as e:
+        st.error(f"Error calculating confidence intervals: {str(e)}")
+        return
     
-    predictions_df = pd.DataFrame({'Date': periods, 'Predictions': predictions})
-    st.dataframe(predictions_df)
+    # Display results
+    st.subheader(f"Forecast Results for {coin_name} using {model_choice}")
     
-    plot_actual_forecast_with_confidence(y_test[-num_periods:], predictions, periods, upper_bound, lower_bound)
-
+    # Create and display forecast table
+    forecast_df = create_forecast_table(predictions, periods, upper_bound, lower_bound)
+    
+    # Apply styling to the DataFrame
+    styled_df = forecast_df.style \
+        .format({
+            'Forecast': '{:.4f}',
+            'Lower Bound': '{:.4f}',
+            'Upper Bound': '{:.4f}',
+            'Confidence Range': '{:.4f}'
+        }) \
+        .apply(lambda x: ['background: #f7f7f7' if i%2==0 else '' for i in range(len(x))], axis=0) \
+        .set_properties(**{'text-align': 'center'})
+    
+    st.dataframe(styled_df, use_container_width=True)
+    
+    # Plot results
+    plot_actual_forecast_with_confidence(
+        y_test[-num_periods:], 
+        predictions, 
+        periods, 
+        upper_bound, 
+        lower_bound,
+        coin_name,
+        model_choice
+    )
+    
+    # Display metrics
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Mean Squared Error", f"{mse:.4f}")
+    with col2:
+        mean_confidence_range = np.mean(upper_bound - lower_bound)
+        st.metric("Average Confidence Range", f"{mean_confidence_range:.4f}")
 
 
 from datetime import datetime, timedelta
@@ -2108,14 +2230,57 @@ def main():
                 coin_index = selected_data.columns.get_loc(coin)
                 evaluate_models_selected_coin(selected_data, coin_index, model)
         elif prediction_option == "Prediction Graphs":
-            coin = st.selectbox("Select coin:", selected_data.columns)
-            model = st.selectbox("Select model:", ['Gradient Boosting', 'SVR', 'XGBOOST', 'LSTM'])
-            frequency = st.selectbox("Select frequency:", ['daily', 'weekly', 'monthly', 'quarterly'])
-            periods = st.number_input("Number of periods:", min_value=1, value=20)
+            st.header("Cryptocurrency Price Prediction")
             
-            if st.button("Predict"):
-                coin_index = selected_data.columns.get_loc(coin)
-                evaluate_and_plot_model(coin_index, model, frequency, periods)
+            # Create two columns for better layout
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                coin = st.selectbox(
+                    "Select coin:", 
+                    selected_data.columns,
+                    help="Select the cryptocurrency you want to analyze"
+                )
+                
+                model = st.selectbox(
+                    "Select model:", 
+                    ['Gradient Boosting', 'SVR', 'XGBOOST', 'LSTM'],
+                    help="Choose the machine learning model for prediction"
+                )
+            
+            with col2:
+                frequency = st.selectbox(
+                    "Select frequency:", 
+                    ['daily', 'weekly', 'monthly', 'quarterly'],
+                    help="Time intervals for the prediction"
+                )
+                
+                periods = st.number_input(
+                    "Number of periods to predict:", 
+                    min_value=1, 
+                    max_value=100, 
+                    value=20,
+                    step=1,
+                    help="How many time periods (days/weeks/months) to forecast"
+                )
+            
+            # Add some visual separation
+            st.markdown("---")
+            
+            if st.button("Run Prediction", type="primary"):
+                # Show loading spinner while processing
+                with st.spinner(f"Generating {model} predictions for {coin}..."):
+                    try:
+                        coin_index = selected_data.columns.get_loc(coin)
+                        evaluate_and_plot_model(coin_index, model, frequency, periods, selected_data)
+                        
+                        # Success message
+                        st.success("Prediction completed successfully!")
+                        
+                    except Exception as e:
+                        st.error(f"An error occurred during prediction: {str(e)}")
+                        st.warning("Please check your inputs and try again.")
+
         elif prediction_option == "Buy and Sell Prediction":
             strategy = st.sidebar.radio(
                 "Select Prediction Strategy:",
