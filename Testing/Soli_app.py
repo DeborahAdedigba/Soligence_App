@@ -1876,12 +1876,15 @@ def find_best_coins(model_type, desired_profit, num_days):
     """, unsafe_allow_html=True)
     
     # Display recommendations
+    # Display recommendations
     for i, (coin, data) in enumerate(recommended_coins[:2]):
         is_positive = data['profit'] >= desired_profit
         box_class = "success-box" if is_positive else "warning-box"
         title = "Top Recommendation" if i == 0 else "Alternative Option"
+        profit_class = "profit-positive" if is_positive else "profit-negative"
         
-        st.markdown(f"""
+        # Create the full HTML block
+        result_html = f"""
         <div class="recommendation-box {box_class}">
             <div class="metric-title">{title}</div>
             <div class="metric-value">{coin}</div>
@@ -1902,9 +1905,7 @@ def find_best_coins(model_type, desired_profit, num_days):
             
             <div style="margin-bottom: 10px;">
                 <span class="metric-title">Predicted Profit: </span>
-                <span class="{'profit-positive' if is_positive else 'profit-negative'}">
-                    ${data['profit']:,.2f}
-                </span>
+                <span class="{profit_class}">${data['profit']:,.2f}</span>
             </div>
             
             <div style="margin-bottom: 10px;">
@@ -1919,10 +1920,13 @@ def find_best_coins(model_type, desired_profit, num_days):
             
             <div>
                 <span class="metric-title">Target Achievement: </span>
-                <span>{((data['profit'] / desired_profit) * 100) if desired_profit != 0 else 0:.1f}%</span>
+                <span>{((data['profit'] / desired_profit) * 100 if desired_profit != 0 else 0):.1f}%</span>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """
+        
+        # Display the entire block as HTML
+        st.markdown(result_html, unsafe_allow_html=True)
 
 def get_top_crypto_news(crypto, num_stories=5, news_source='all'):
     if news_source == 'all' or news_source == 'Cryptoslate':
