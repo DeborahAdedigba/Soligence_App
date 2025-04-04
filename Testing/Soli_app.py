@@ -1810,42 +1810,106 @@ def find_best_coins(model_type, desired_profit, num_days):
             recommended_coins.append(sorted_below[0])
     
     # Display results with improved formatting
-    st.subheader("Results:")
+    st.markdown("### Prediction Results")
+    
+    # Custom CSS for styling
+    st.markdown("""
+    <style>
+    .recommendation-box {
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        background-color: #f8f9fa;
+        border-left: 5px solid #4e73df;
+    }
+    .success-box {
+        border-left: 5px solid #1cc88a;
+    }
+    .warning-box {
+        border-left: 5px solid #f6c23e;
+    }
+    .metric-title {
+        font-size: 16px;
+        color: #5a5c69;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    .metric-value {
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+    .profit-positive {
+        color: #1cc88a;
+    }
+    .profit-negative {
+        color: #e74a3b;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
     # First recommendation
     if len(recommended_coins) >= 1:
         coin, profit = recommended_coins[0]
-        if profit >= desired_profit:
-            st.success(f"Best performing coin: {coin}")
-            exceeds_by = profit - desired_profit
-            st.write(f"Predicted profit: ${profit:.2f} (exceeds  target  by ${exceeds_by:.2f})")
-        else:
-            st.warning(f"Closest coin: {coin}")
-            shortfall = desired_profit - profit
-            st.write(f"Predicted profit: ${profit:.2f} (below  target  by ${shortfall:.2f})")
+        box_class = "success-box" if profit >= desired_profit else "warning-box"
         
-        st.write(f"Time period: {num_days} days")
-        profit_percentage = (profit / desired_profit) * 100 if desired_profit != 0 else 0
-        st.write(f"Achieves {profit_percentage:.1f}% of desired profit (${desired_profit:.2f})")
+        st.markdown(f"""
+        <div class="recommendation-box {box_class}">
+            <div class="metric-title">{"Top Recommendation" if profit >= desired_profit else "Best Available Option"}</div>
+            <div class="metric-value">{coin}</div>
+            <div style="margin-bottom: 10px;">
+                <span class="metric-title">Predicted Profit: </span>
+                <span class="{'profit-positive' if profit >= desired_profit else 'profit-negative'}">${profit:,.2f}</span>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <span class="metric-title">Target Profit: </span>
+                <span>${desired_profit:,.2f}</span>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <span class="metric-title">Time Period: </span>
+                <span>{num_days} days</span>
+            </div>
+            <div>
+                <span class="metric-title">Target Achievement: </span>
+                <span>{((profit / desired_profit) * 100) if desired_profit != 0 else 0:.1f}%</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Second recommendation
     if len(recommended_coins) >= 2:
-        st.write("---")
         coin, profit = recommended_coins[1]
-        if profit >= desired_profit:
-            label = "Alternative option (exceeds target):"
-            if profit > recommended_coins[0][1]:
-                label = "Alternative option (higher profit):"
-            elif abs(profit - desired_profit) < abs(recommended_coins[0][1] - desired_profit):
-                label = "Alternative option (closer to target):"
-            st.success(f"{label} {coin}")
-        else:
-            st.warning(f"Alternative option: {coin}")
+        box_class = "success-box" if profit >= desired_profit else "warning-box"
+        label = "Alternative Option"
         
-        st.write(f"Predicted profit: ${profit:.2f}")
-        st.write(f"Time period: {num_days} days")
-        profit_percentage = (profit / desired_profit) * 100 if desired_profit != 0 else 0
-        st.write(f"Achieves {profit_percentage:.1f}% of desired profit (${desired_profit:.2f})")
+        if profit >= desired_profit:
+            if profit > recommended_coins[0][1]:
+                label = "Higher Profit Option"
+            elif abs(profit - desired_profit) < abs(recommended_coins[0][1] - desired_profit):
+                label = "More Precise Option"
+        
+        st.markdown(f"""
+        <div class="recommendation-box {box_class}">
+            <div class="metric-title">{label}</div>
+            <div class="metric-value">{coin}</div>
+            <div style="margin-bottom: 10px;">
+                <span class="metric-title">Predicted Profit: </span>
+                <span class="{'profit-positive' if profit >= desired_profit else 'profit-negative'}">${profit:,.2f}</span>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <span class="metric-title">Target Profit: </span>
+                <span>${desired_profit:,.2f}</span>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <span class="metric-title">Time Period: </span>
+                <span>{num_days} days</span>
+            </div>
+            <div>
+                <span class="metric-title">Target Achievement: </span>
+                <span>{((profit / desired_profit) * 100) if desired_profit != 0 else 0:.1f}%</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 def get_top_crypto_news(crypto, num_stories=5, news_source='all'):
     if news_source == 'all' or news_source == 'Cryptoslate':
@@ -2077,12 +2141,42 @@ def main():
             else:  # Machine Learning Models
                 create_prediction_interface(selected_data)
         elif prediction_option == "Predict coin by Profit":
-            model_type = st.selectbox("Select model:", ['Gradient_Boosting', 'SVR', 'Xgboost', 'LSTM'])
-            profit = st.number_input("Desired profit:", value=100)
-            days = st.number_input("Days:", value=30)
+            st.markdown("## Profit-Based Coin Prediction")
             
-            if st.button("Find Best Coins"):
-                find_best_coins(model_type, profit, days)
+            with st.form(key="profit_prediction_form"):
+                # Create a 3-column layout
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    model_type = st.selectbox(
+                        "Select Prediction Model:",
+                        ['Gradient_Boosting', 'SVR', 'Xgboost', 'LSTM'],
+                        help="Choose the machine learning model for prediction"
+                    )
+                
+                with col2:
+                    profit = st.slider(
+                        "Desired Profit ($):",
+                        min_value=10,
+                        max_value=1000,
+                        value=100,
+                        step=10,
+                        help="Set your target profit amount"
+                    )
+                
+                with col3:
+                    days = st.slider(
+                        "Investment Period (days):",
+                        min_value=1,
+                        max_value=90,
+                        value=30,
+                        help="Select your investment time horizon"
+                    )
+                
+                submit_button = st.form_submit_button("Find Best Coins")
+                
+                if submit_button:
+                    find_best_coins(model_type, profit, days)
     elif page == "NEWS":
         crypto = st.text_input("Cryptocurrency:", "Bitcoin")
         source = st.selectbox("News source:", ['all', 'Cryptoslate', 'CoinDesk'])
