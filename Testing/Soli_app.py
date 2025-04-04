@@ -1869,7 +1869,7 @@ def find_best_coins(model_type, desired_profit, num_days):
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("## Prediction Results")
+    st.markdown("## 📈 Prediction Results")
 
     for i, (coin, data) in enumerate(recommended_coins[:2]):
         is_positive = data['profit'] >= desired_profit
