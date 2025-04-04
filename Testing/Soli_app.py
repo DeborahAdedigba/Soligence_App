@@ -703,8 +703,7 @@ def home_section():
     # ====== Header Section ======
     header_col1, header_col2 = st.columns([1, 3])
     with header_col1:
-        st.image("https://dcassetcdn.com/design_img/2956478/152860/152860_16291385_2956478_2487aca1_image.jpg", 
-                width=150)
+        st.image("soli_logoy.jpg",use_container_width=True )
     with header_col2:
         st.markdown('<div class="hero-title">SOLiGence</div>', unsafe_allow_html=True)
         st.markdown('<div class="hero-subtitle">Your Intelligent Coin Trading Platform</div>', 
