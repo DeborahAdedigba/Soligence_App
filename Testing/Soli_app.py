@@ -1607,6 +1607,7 @@ def plot_moving_average():
         - **Window size**: Shorter windows react faster but are more volatile, longer windows are smoother but lag more
         """)
 
+
 def plot_crypto_metrics(coin, metrics, start_date, end_date):
     selected_data = combined_data[combined_data['Crypto'] == coin]
     selected_data = selected_data.loc[start_date:end_date]
