@@ -1349,31 +1349,215 @@ import streamlit as st
 from datetime import datetime, timedelta
 from tensorflow.keras.models import load_model
 from ta.trend import SMAIndicator
+def apply_ma_trading_strategy(chosen_coin, combined_data):
+    """Apply moving average trading strategy with error handling"""
+    try:
+        # Filter data for selected coin
+        selected_data = combined_data[combined_data['Crypto'] == chosen_coin].copy()
+        selected_data.dropna(subset=['Close'], inplace=True)
+        
+        # Handle datetime index safely
+        if not isinstance(selected_data.index, pd.DatetimeIndex):
+            selected_data.index = pd.to_datetime(selected_data.index)
+        if hasattr(selected_data.index, 'tz') and selected_data.index.tz is not None:
+            selected_data.index = selected_data.index.tz_localize(None)
+        
+        # Calculate moving averages
+        ma_7, ma_14 = 7, 14
+        selected_data[f'MA_{ma_7}'] = SMAIndicator(
+            close=selected_data['Close'], 
+            window=ma_7
+        ).sma_indicator()
+        selected_data[f'MA_{ma_14}'] = SMAIndicator(
+            close=selected_data['Close'], 
+            window=ma_14
+        ).sma_indicator()
+        
+        # Generate signals
+        selected_data['Buy_Signal'] = np.where(
+            selected_data[f'MA_{ma_7}'] > selected_data[f'MA_{ma_14}'].shift(1), 1, 0
+        )
+        selected_data['Sell_Signal'] = np.where(
+            selected_data[f'MA_{ma_7}'] < selected_data[f'MA_{ma_14}'].shift(1), -1, 0
+        )
+        
+        return selected_data
+        
+    except Exception as e:
+        st.error(f"Error generating trading strategy: {str(e)}")
+        logging.error(f"Error in apply_ma_trading_strategy: {str(e)}", exc_info=True)
+        return None
 
 def forecast_price(selected_data, chosen_coin, num_days):
-    """Forecast future price using moving average strategy"""
-    future_date = datetime.now() + timedelta(days=num_days)
-    future_date = future_date.replace(tzinfo=None)
-    
-    last_date = selected_data.index[-1].to_pydatetime().replace(tzinfo=None)
-    
-    if future_date > last_date:
-        new_index = pd.date_range(start=selected_data.index[0], periods=len(selected_data) + num_days, freq='D')
-        extended_data = selected_data.reindex(new_index, method='ffill')
+    """Forecast future price using moving averages"""
+    try:
+        future_date = datetime.now() + timedelta(days=num_days)
+        future_date = future_date.replace(tzinfo=None)
         
-        ma_7 = 7
-        ma_14 = 14
+        last_date = selected_data.index[-1].to_pydatetime().replace(tzinfo=None)
         
-        extended_data[f'MA_{ma_7}'] = SMAIndicator(close=extended_data['Close'], window=ma_7).sma_indicator()
-        extended_data[f'MA_{ma_14}'] = SMAIndicator(close=extended_data['Close'], window=ma_14).sma_indicator()
+        if future_date > last_date:
+            new_index = pd.date_range(start=selected_data.index[0], periods=len(selected_data) + num_days, freq='D')
+            extended_data = selected_data.reindex(new_index, method='ffill')
+            
+            ma_7 = 7
+            ma_14 = 14
+            
+            extended_data[f'MA_{ma_7}'] = SMAIndicator(close=extended_data['Close'], window=ma_7).sma_indicator()
+            extended_data[f'MA_{ma_14}'] = SMAIndicator(close=extended_data['Close'], window=ma_14).sma_indicator()
+            
+            future_price = (extended_data[f'MA_{ma_7}'].iloc[-1] + extended_data[f'MA_{ma_14}'].iloc[-1]) / 2
+            return future_price, future_date
         
-        future_price = (extended_data[f'MA_{ma_7}'].iloc[-1] + extended_data[f'MA_{ma_14}'].iloc[-1]) / 2
-        return future_price, future_date
-    
-    return None, None
+        return None, None
+    except Exception as e:
+        st.error(f"Error in price forecasting: {str(e)}")
+        logging.error(f"Error in forecast_price: {str(e)}", exc_info=True)
+        return None, None
+
+def determine_best_time_to_trade_future(chosen_coin, num_days, combined_data):
+    """Generate trading recommendation based on moving averages"""
+    try:
+        selected_data = apply_ma_trading_strategy(chosen_coin, combined_data)
+        if selected_data is None:
+            return None
+            
+        future_price, future_date = forecast_price(selected_data, chosen_coin, num_days)
+        
+        if future_price is not None:
+            current_price = selected_data['Close'].iloc[-1]
+            price_change = future_price - current_price
+            percentage_change = (price_change / current_price) * 100
+            action = "Buy" if future_price > current_price else "Sell"
+            confidence = "Strong" if abs(percentage_change) > 5 else "Moderate" if abs(percentage_change) > 2 else "Weak"
+            
+            # Display results
+            st.markdown("""
+            <style>
+            .result-box {
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+                background-color: #f0f2f6;
+                border-left: 5px solid #4e8cff;
+            }
+            .metric-label {
+                font-size: 14px;
+                color: #555;
+                font-weight: bold;
+            }
+            .metric-value {
+                font-size: 24px;
+                font-weight: bold;
+                margin-bottom: 5px;
+            }
+            .price-up {
+                color: #10b981;
+            }
+            .price-down {
+                color: #ef4444;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            result_html = f"""
+            <div class="result-box">
+                <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                    <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                        <div class="metric-label">Current Price</div>
+                        <div class="metric-value">${current_price:.4f}</div>
+                    </div>
+                    <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                        <div class="metric-label">Predicted Price</div>
+                        <div class="metric-value {'price-up' if price_change > 0 else 'price-down'}">${future_price:.4f}</div>
+                        <div>{'▲' if price_change > 0 else '▼'} {abs(percentage_change):.2f}%</div>
+                    </div>
+                    <div style="min-width: 150px; margin-bottom: 15px;">
+                        <div class="metric-label">Forecast Date</div>
+                        <div class="metric-value">{future_date.strftime('%Y-%m-%d')}</div>
+                        <div>({num_days} days ahead)</div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                    <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">
+                        Recommendation: <span style="color: {'#10b981' if action == 'Buy' else '#ef4444'}">{action}</span> with {confidence} confidence
+                    </div>
+                    <div style="font-style: italic; color: #666;">
+                        Based on moving average analysis of {chosen_coin}'s historical data
+                    </div>
+                </div>
+            </div>
+            """
+            
+            st.markdown(result_html, unsafe_allow_html=True)
+            st.caption("Note: This forecast is an estimate and market conditions can change unexpectedly.")
+            
+            # Plot the moving averages
+            plot_ma_strategy(selected_data, chosen_coin)
+            
+        else:
+            st.error("Unable to generate forecast. Please check your data inputs.")
+        
+        return selected_data
+        
+    except Exception as e:
+        st.error(f"Error in trading recommendation: {str(e)}")
+        logging.error(f"Error in determine_best_time_to_trade_future: {str(e)}", exc_info=True)
+        return None
+
+# def plot_ma_strategy(selected_data, chosen_coin):
+#     """Plot the moving average strategy"""
+#     try:
+#         fig = go.Figure()
+        
+#         # Add traces with proper formatting
+#         traces = [
+#             ('Close Price', 'blue', None, selected_data['Close']),
+#             ('7-day MA', 'green', None, selected_data['MA_7']),
+#             ('14-day MA', 'red', None, selected_data['MA_14']),
+#             ('Buy Signal', 'green', 'triangle-up', 
+#              selected_data.loc[selected_data['Buy_Signal'] == 1, 'Close']),
+#             ('Sell Signal', 'red', 'triangle-down',
+#              selected_data.loc[selected_data['Sell_Signal'] == -1, 'Close'])
+#         ]
+        
+#         for name, color, symbol, y in traces:
+#             fig.add_trace(go.Scatter(
+#                 x=selected_data.index,
+#                 y=y,
+#                 name=name,
+#                 mode='lines' if symbol is None else 'markers',
+#                 line=dict(color=color) if symbol is None else None,
+#                 marker=dict(color=color, size=10, symbol=symbol) if symbol else None
+#             ))
+        
+#         # Add current price line
+#         current_price = selected_data['Close'].iloc[-1]
+#         fig.add_trace(go.Scatter(
+#             x=[selected_data.index[0], selected_data.index[-1]],
+#             y=[current_price, current_price],
+#             mode='lines',
+#             name='Current Price',
+#             line=dict(color='gray', dash='dash')
+#         )
+        
+#         # Update layout
+#         fig.update_layout(
+#             title=f'Moving Average Strategy for {chosen_coin}',
+#             xaxis_title='Date',
+#             yaxis_title='Price',
+#             hovermode='x unified',
+#             showlegend=True
+#         )
+        
+#         st.plotly_chart(fig, use_container_width=True)
+        
+#     except Exception as e:
+#         st.error(f"Error plotting strategy: {str(e)}")
+#         logging.error(f"Error in plot_ma_strategy: {str(e)}", exc_info=True)
 
 def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
-    """Forecast future price using machine learning models"""
+    """Forecast using machine learning models"""
     try:
         if chosen_coin not in selected_data.columns:
             st.error(f"Selected coin '{chosen_coin}' not found in data")
@@ -1438,96 +1622,11 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
     
     except Exception as e:
         st.error(f"Error in price forecasting: {str(e)}")
+        logging.error(f"Error in forecast_price_with_model: {str(e)}", exc_info=True)
         return None, None
 
-def apply_ma_trading_strategy(chosen_coin):
-    """Apply moving average trading strategy with error handling"""
-    try:
-        # Filter data for selected coin
-        selected_data = combined_data[combined_data['Crypto'] == chosen_coin].copy()
-        selected_data.dropna(subset=['Close'], inplace=True)
-        
-        # Handle datetime index safely
-        if not isinstance(selected_data.index, pd.DatetimeIndex):
-            selected_data.index = pd.to_datetime(selected_data.index)
-        if hasattr(selected_data.index, 'tz') and selected_data.index.tz is not None:
-            selected_data.index = selected_data.index.tz_localize(None)
-        
-        # Calculate moving averages
-        ma_7, ma_14 = 7, 14
-        selected_data[f'MA_{ma_7}'] = SMAIndicator(
-            close=selected_data['Close'], 
-            window=ma_7
-        ).sma_indicator()
-        selected_data[f'MA_{ma_14}'] = SMAIndicator(
-            close=selected_data['Close'], 
-            window=ma_14
-        ).sma_indicator()
-        
-        # Generate signals
-        selected_data['Buy_Signal'] = np.where(
-            selected_data[f'MA_{ma_7}'] > selected_data[f'MA_{ma_14}'].shift(1), 1, 0
-        )
-        selected_data['Sell_Signal'] = np.where(
-            selected_data[f'MA_{ma_7}'] < selected_data[f'MA_{ma_14}'].shift(1), -1, 0
-        )
-        
-        # Create figure
-        fig = go.Figure()
-        
-        # Add traces with proper formatting
-        traces = [
-            ('Close Price', 'blue', None, selected_data['Close']),
-            (f'{ma_7}-day MA', 'green', None, selected_data[f'MA_{ma_7}']),
-            (f'{ma_14}-day MA', 'red', None, selected_data[f'MA_{ma_14}']),
-            ('Buy Signal', 'green', 'triangle-up', 
-             selected_data.loc[selected_data['Buy_Signal'] == 1, 'Close']),
-            ('Sell Signal', 'red', 'triangle-down',
-             selected_data.loc[selected_data['Sell_Signal'] == -1, 'Close'])
-        ]
-        
-        for name, color, symbol, y in traces:
-            fig.add_trace(go.Scatter(
-                x=selected_data.index,
-                y=y,
-                name=name,
-                mode='lines' if symbol is None else 'markers',
-                line=dict(color=color) if symbol is None else None,
-                marker=dict(color=color, size=10, symbol=symbol) if symbol else None
-            ))
-        
-        # Add current price line
-        current_price = selected_data['Close'].iloc[-1]
-        fig.add_trace(go.Scatter(
-            x=[selected_data.index[0], selected_data.index[-1]],
-            y=[current_price, current_price],
-            mode='lines',
-            name='Current Price',
-            line=dict(color='gray', dash='dash')
-        ))
-        
-        # Update layout
-        fig.update_layout(
-            title=f'Trading Strategy for {chosen_coin}',
-            xaxis_title='Date',
-            yaxis_title='Price',
-            hovermode='x unified',
-            showlegend=True
-        )
-        
-        # Display
-        st.plotly_chart(fig, use_container_width=True)
-        st.metric(label="Current Price", value=f"{current_price:.4f}")
-        
-        return selected_data
-        
-    except Exception as e:
-        st.error(f"Error generating trading strategy: {str(e)}")
-        logging.error(f"Error in apply_ma_trading_strategy: {str(e)}", exc_info=True)
-        return None
-
 def create_prediction_interface(selected_data):
-    """Create the unified prediction interface with both methods"""
+    """Create unified prediction interface"""
     st.markdown("## Cryptocurrency Price Prediction")
     
     with st.form(key="prediction_form"):
@@ -1538,9 +1637,9 @@ def create_prediction_interface(selected_data):
             chosen_coin = st.selectbox("Select Cryptocurrency", options=available_coins)
         
         with col2:
-            analysis_method = st.selectbox(
-                "Select Analysis Method",
-                options=["SVR", "GBR", "XGBoost", "LSTM", "Moving Average"]
+            model_type = st.selectbox(
+                "Select Model Type",
+                options=["SVR", "GBR", "XGBoost", "LSTM"]
             )
         
         with col3:
@@ -1555,25 +1654,10 @@ def create_prediction_interface(selected_data):
         
         if predict_button:
             with st.spinner("Analyzing market data..."):
-                if analysis_method == "Moving Average":
-                    # Use MA-based forecasting
-                    selected_data_ma = apply_ma_trading_strategy(chosen_coin)
-                    future_price, future_date = forecast_price(selected_data_ma, chosen_coin, num_days)
-                    
-                    if future_price is not None:
-                        current_price = selected_data_ma['Close'].iloc[-1]
-                        analysis_description = f"Based on moving average analysis of {chosen_coin}'s historical data"
-                else:
-                    # Use model-based forecasting
-                    future_price, future_date = forecast_price_with_model(
-                        chosen_coin, num_days, analysis_method, selected_data
-                    )
-                    
-                    if future_price is not None:
-                        current_price = selected_data[chosen_coin].iloc[-1]
-                        analysis_description = f"Based on {analysis_method} model analysis of {chosen_coin}'s historical data"
+                future_price, future_date = forecast_price_with_model(chosen_coin, num_days, model_type, selected_data)
                 
                 if future_price is not None:
+                    current_price = selected_data[chosen_coin].iloc[-1]
                     price_change = future_price - current_price
                     percentage_change = (price_change / current_price) * 100
                     action = "Buy" if future_price > current_price else "Sell"
@@ -1630,7 +1714,7 @@ def create_prediction_interface(selected_data):
                                 Recommendation: <span style="color: {'#10b981' if action == 'Buy' else '#ef4444'}">{action}</span> with {confidence} confidence
                             </div>
                             <div style="font-style: italic; color: #666;">
-                                {analysis_description}
+                                Based on {model_type} model analysis of {chosen_coin}
                             </div>
                         </div>
                     </div>
@@ -1639,7 +1723,7 @@ def create_prediction_interface(selected_data):
                     st.markdown(result_html, unsafe_allow_html=True)
                     st.caption("Note: This forecast is an estimate and market conditions can change unexpectedly.")
                 else:
-                    st.write("Unable to forecast price.")
+                    st.error("Unable to forecast price.")
     
 # getting best coins   
 def find_best_coins(model_type, desired_profit, num_days):
