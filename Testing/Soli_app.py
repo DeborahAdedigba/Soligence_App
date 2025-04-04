@@ -39,6 +39,14 @@ import logging
 from logging.handlers import RotatingFileHandler
 import sklearn
 from sklearn import __version__ as sklearn_version
+import sklearn
+from sklearn import __version__ as sklearn_version
+import xgboost
+from xgboost import __version__ as xgboost_version
+import tensorflow as tf
+import joblib
+from joblib import __version__ as joblib_version
+
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -99,21 +107,6 @@ def check_versions():
             logging.error(f"Version check failed for {pkg}: {str(e)}")
 
 # Training functions
-# def prepare_data(selected_data, coin_index=0):
-#     """Prepare data with lag features"""
-#     selected_data = selected_data.copy()
-#     coin_name = selected_data.columns[coin_index]
-    
-#     for lag in range(1, 4):
-#         selected_data[f'{coin_name}_lag_{lag}'] = selected_data[coin_name].shift(lag)
-    
-#     selected_data.dropna(inplace=True)
-    
-#     features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
-#     X = selected_data[features]
-#     y = selected_data[coin_name]
-    
-#     return train_test_split(X, y, test_size=0.2, random_state=42)
 
 def prepare_data(selected_data, coin_index=0, for_lstm=False):
     """Prepare data with lag features"""
@@ -175,15 +168,6 @@ def train_xgboost(X_train, y_train):
     xgb.fit(X_train, y_train)
     return xgb
 
-
-# Add these imports at the TOP of your script (with other imports)
-import sklearn
-from sklearn import __version__ as sklearn_version
-import xgboost
-from xgboost import __version__ as xgboost_version
-import tensorflow as tf
-import joblib
-from joblib import __version__ as joblib_version
 
 # Then modify your save_model function to this robust version:
 def save_model(model, model_name, coin_index=1, input_shape=None):
@@ -364,39 +348,6 @@ def train_models_for_coin(selected_data, coin_index):
         raise e
 
 
-# def train_lstm(X_train, y_train):
-#     """Train LSTM model (requires numpy arrays)"""
-#     logging.info("Initializing LSTM model")
-
-#     tf.keras.backend.clear_session()
-    
-#     model = tf.keras.Sequential([
-#         tf.keras.layers.LSTM(32, input_shape=(X_train.shape[1], 1)),
-#         tf.keras.layers.Dense(16, activation='relu'),
-#         tf.keras.layers.Dense(1)
-#     ])
-    
-#     model.compile(optimizer='adam', loss='mse')
-    
-#     # Ensure data is numpy array
-#     X_array = np.array(X_train, dtype=np.float32).reshape(X_train.shape[0], X_train.shape[1], 1)
-#     y_array = np.array(y_train, dtype=np.float32)
-    
-#     model.fit(X_array, y_array, epochs=50, batch_size=32, verbose=1)
-
-
-#     logging.info("Starting LSTM training")
-#     history = model.fit(
-#         X_train_reshaped, y_train,
-#         epochs=50,
-#         batch_size=32,
-#         validation_split=0.2,
-#         callbacks=[early_stop],
-#         verbose=1
-#     )
-#     logging.info("Completed LSTM training")
-    
-#     return model
 def train_lstm(X_train, y_train):
     """Train LSTM model (requires numpy arrays)"""
     logging.info("Initializing LSTM model training")
@@ -673,31 +624,87 @@ if not os.path.exists("trained_models") and not selected_data.empty:
 
 # UI Functions
 def home_section():
-    st.title("SOLiGence")
-    st.write(
-        "Solent Intelligence (SOLiGence) is a leading financial multinational organisation that deals"
-        " with stock and shares, saving and investments.")
-
-    st.header('Welcome to SOLiGence')
-    st.write("Your Intelligent Coin Trading Platform")
-    st.write("Empower your cryptocurrency trading decisions with AI-driven insights and real-time data.")
-
-    if st.button("Get Started"):
-        st.write("Let's explore the world of cryptocurrency trading together!")
+    # Main header with logo and tagline
+    col1, col2 = st.columns([1, 3])
+    with col1:
         st.image('https://img.freepik.com/free-vector/gradient-stock-market-concept_23-2149166910.jpg', 
-                use_container_width=True)
+                width=150)
+    with col2:
+        st.title("SOLiGence")
+        st.markdown("**Your Intelligent Coin Trading Platform**", unsafe_allow_html=True)
+    
+    # Hero section
+    st.markdown("---")
+    st.markdown("""
+    <style>
+    .big-font {
+        font-size:22px !important;
+        color: #4f8bf9;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<p class="big-font">Empower your cryptocurrency trading decisions with AI-driven insights and real-time data.</p>', 
+               unsafe_allow_html=True)
+    
+    # Action buttons
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🚀 Get Started", key="get_started", help="Begin your trading journey"):
+            st.session_state.show_get_started = True
+    
+    with col2:
+        if st.button("📰 Latest News", key="news_btn", help="Go to news section"):
+            st.session_state.page = "NEWS"
+    
+    if st.session_state.get('show_get_started', False):
+        # Features showcase
+        st.markdown("---")
+        st.header("✨ Let's explore cryptocurrency trading together!")
         
-        st.write("News and Updates:")
-        st.info("Stay tuned for the latest updates and trends in the cryptocurrency market!")
+        features = {
+            "📊": "AI-powered market analysis",
+            "⏱️": "Real-time data processing",
+            "📈": "Advanced trading indicators",
+            "🔒": "Secure and reliable platform"
+        }
         
-        st.write("What Our Users Say:")
-        st.write("The SOLiGence app transformed how I approach cryptocurrency trading. Highly recommended!")
+        for icon, text in features.items():
+            st.markdown(f"{icon} **{text}**")
         
-        st.write("Contact Us:")
-        st.write("For inquiries, email us at info@soligence.com")
+        st.image('https://img.freepik.com/free-vector/gradient-stock-market-concept_23-2149166910.jpg', 
+                use_container_width=True, caption="Advanced Trading Analytics")
         
-        st.write("Connect with Us:")
-        st.markdown("[Twitter](https://twitter.com) [LinkedIn](https://linkedin.com)")
+        # Testimonials
+        st.markdown("---")
+        st.header("💬 What Our Users Say")
+        st.success("""
+        "The SOLiGence app transformed how I approach cryptocurrency trading. 
+        The AI insights helped me make better decisions and increased my returns by 30%. Highly recommended!"
+        """)
+        
+        # Contact section
+        st.markdown("---")
+        st.header("📩 Contact Us")
+        contact_col1, contact_col2 = st.columns(2)
+        with contact_col1:
+            st.subheader("Email")
+            st.write("[📧 Email](debbydawn16@gmail.com)")
+        with contact_col2:
+            st.subheader("Social Media")
+            st.markdown("[💼 LinkedIn](https://www.linkedin.com/in/deborah-adedigba-bb917314b/)")
+    
+    
+    # About section (always visible)
+    st.markdown("---")
+    st.header("About SOLiGence")
+    st.write("""
+    SOLiGence (Solent Intelligence) is a leading financial multinational organization specializing in:
+    - Stock and shares analysis
+    - Savings optimization
+    - Investment strategies
+    - Cryptocurrency trading intelligence
+    """)
 
 def about_us():
     st.title("About Solent Intelligence Ltd.")
@@ -1069,8 +1076,8 @@ def plot_coin_scatter():
 
 def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
     """
-    Evaluate machine learning models for a specific cryptocurrency with enhanced visualizations,
-    interactive elements, and proper key management for Streamlit components.
+    Evaluate machine learning models for a specific cryptocurrency with single selection
+    and enhanced visualizations.
     """
     try:
         # Validate input data
@@ -1141,71 +1148,65 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
                     st.error(f"Model loading failed again: {str(e)}")
                     return
 
-        # Determine which models to evaluate
-        if chosen_model.lower() == 'all':
-            models_to_evaluate = models.keys()
-        else:
-            chosen_model = chosen_model.upper()
-            if chosen_model in models:
-                models_to_evaluate = [chosen_model]
-            else:
-                st.error(f"Model '{chosen_model}' not found in trained models")
-                return
+        # Single model selection
+        available_models = list(models.keys())
+        selected_model = st.selectbox(
+            "Select model to evaluate:",
+            options=available_models,
+            index=0,
+            key=f"model_select_{coin_index}"
+        )
 
         # Evaluation metrics storage
         eval_metrics = {}
         predictions_data = []
         time_series_data = []
 
-        with st.spinner("Evaluating models..."):
-            for model_name in models_to_evaluate:
-                if models[model_name] is None:
-                    st.warning(f"Skipping {model_name} - model not available")
-                    continue
+        with st.spinner(f"Evaluating {selected_model}..."):
+            model = models[selected_model]
+            if model is None:
+                st.warning(f"{selected_model} model not available")
+                return
 
-                try:
-                    # Make predictions
-                    if model_name == 'LSTM':
-                        X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
-                        predictions = models[model_name].predict(X_test_array).flatten()
-                    else:
-                        predictions = models[model_name].predict(X_test)
+            try:
+                # Make predictions
+                if selected_model == 'LSTM':
+                    X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
+                    predictions = model.predict(X_test_array).flatten()
+                else:
+                    predictions = model.predict(X_test)
 
-                    # Calculate metrics
-                    metrics = {
-                        'MAE': mean_absolute_error(y_test, predictions),
-                        'MSE': mean_squared_error(y_test, predictions),
-                        'RMSE': np.sqrt(mean_squared_error(y_test, predictions)),
-                        'MAPE': np.mean(np.abs((y_test - predictions) / y_test)) * 100,
-                        'R2': r2_score(y_test, predictions)
-                    }
-                    eval_metrics[model_name] = metrics
+                # Calculate metrics
+                metrics = {
+                    'MAE': mean_absolute_error(y_test, predictions),
+                    'MSE': mean_squared_error(y_test, predictions),
+                    'RMSE': np.sqrt(mean_squared_error(y_test, predictions)),
+                    'MAPE': np.mean(np.abs((y_test - predictions) / y_test)) * 100,
+                    'R2': r2_score(y_test, predictions)
+                }
+                eval_metrics[selected_model] = metrics
 
-                    # Store data for visualizations
-                    predictions_data.append({
-                        'Model': model_name,
-                        'Actual': y_test,
-                        'Predicted': predictions
-                    })
-                    
-                    # Store time series data
-                    time_series_data.append({
-                        'Model': model_name,
-                        'Dates': data_prep.index[split_idx:],
-                        'Actual': y_test,
-                        'Predicted': predictions
-                    })
+                # Store data for visualizations
+                predictions_data.append({
+                    'Model': selected_model,
+                    'Actual': y_test,
+                    'Predicted': predictions
+                })
+                
+                # Store time series data
+                time_series_data.append({
+                    'Model': selected_model,
+                    'Dates': data_prep.index[split_idx:],
+                    'Actual': y_test,
+                    'Predicted': predictions
+                })
 
-                except Exception as e:
-                    st.error(f"Error evaluating {model_name}: {str(e)}")
-                    continue
+            except Exception as e:
+                st.error(f"Error evaluating {selected_model}: {str(e)}")
+                return
 
         # Display results
-        if not eval_metrics:
-            st.error("No models were successfully evaluated")
-            return
-
-        st.subheader(f"📊 Evaluation Results for {coin_name}")
+        st.subheader(f"📊 Evaluation Results for {coin_name} - {selected_model}")
         
         # Metrics table with enhanced styling
         with st.expander("Detailed Metrics", expanded=True):
@@ -1243,78 +1244,17 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
             st.download_button(
                 label="Download Metrics as CSV",
                 data=csv,
-                file_name=f'{coin_name}_model_metrics.csv',
+                file_name=f'{coin_name}_{selected_model}_metrics.csv',
                 mime='text/csv',
                 key=f"dl_metrics_{coin_index}"
             )
 
-        # Model comparison visualization
-        st.subheader("📈 Model Performance Comparison")
-        tab1, tab2 = st.tabs(["Bar Chart", "Radar Chart"])
-        
-        with tab1:
-            fig_bar = go.Figure()
-            metrics_to_show = st.multiselect(
-                "Select metrics to compare:",
-                options=['MAE', 'RMSE', 'R2', 'MAPE'],
-                default=['MAE', 'RMSE', 'R2'],
-                key=f"metrics_select_{coin_index}"
-            )
-            
-            for metric in metrics_to_show:
-                fig_bar.add_trace(go.Bar(
-                    x=metrics_df.index,
-                    y=metrics_df[metric],
-                    name=metric,
-                    text=metrics_df[metric].round(4),
-                    textposition='auto',
-                    texttemplate='%{text:.3f}',
-                    hovertemplate='%{x}<br>%{y:.4f}'
-                ))
-            
-            fig_bar.update_layout(
-                barmode='group',
-                title='Model Performance Comparison',
-                xaxis_title='Model',
-                yaxis_title='Metric Value',
-                hovermode="x unified",
-                height=500
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
-        
-        with tab2:
-            fig_radar = go.Figure()
-            
-            for model in metrics_df.index:
-                fig_radar.add_trace(go.Scatterpolar(
-                    r=metrics_df.loc[model].values,
-                    theta=metrics_df.columns,
-                    fill='toself',
-                    name=model,
-                    hovertemplate='%{theta}: %{r:.4f}'
-                ))
-            
-            fig_radar.update_layout(
-                polar=dict(
-                    radialaxis=dict(visible=True)
-                ),
-                title='Radar Chart Comparison',
-                height=500
-            )
-            st.plotly_chart(fig_radar, use_container_width=True)
-
         # Time Series Visualization
         st.subheader("⏳ Time Series Performance")
-        selected_models_ts = st.multiselect(
-            "Select models to display:",
-            options=[d['Model'] for d in time_series_data],
-            default=[d['Model'] for d in time_series_data],
-            key=f"model_select_ts_{coin_index}"
-        )
         
         fig_ts = go.Figure()
         
-        # Add actual values first
+        # Add actual values
         fig_ts.add_trace(go.Scatter(
             x=time_series_data[0]['Dates'],
             y=time_series_data[0]['Actual'],
@@ -1324,20 +1264,18 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
             hovertemplate='Date: %{x}<br>Price: %{y:.4f}'
         ))
         
-        # Add predicted values for selected models
-        for ts_data in time_series_data:
-            if ts_data['Model'] in selected_models_ts:
-                fig_ts.add_trace(go.Scatter(
-                    x=ts_data['Dates'],
-                    y=ts_data['Predicted'],
-                    mode='lines',
-                    name=f"{ts_data['Model']} Predicted",
-                    line=dict(dash='dash'),
-                    hovertemplate='Date: %{x}<br>Predicted: %{y:.4f}'
-                ))
+        # Add predicted values
+        fig_ts.add_trace(go.Scatter(
+            x=time_series_data[0]['Dates'],
+            y=time_series_data[0]['Predicted'],
+            mode='lines',
+            name=f"{selected_model} Predicted",
+            line=dict(dash='dash'),
+            hovertemplate='Date: %{x}<br>Predicted: %{y:.4f}'
+        ))
         
         fig_ts.update_layout(
-            title='Actual vs Predicted Over Time',
+            title=f'Actual vs Predicted Over Time ({selected_model})',
             xaxis_title='Date',
             yaxis_title='Price',
             hovermode="x unified",
@@ -1350,29 +1288,20 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
         col1, col2 = st.columns([3, 1])
         
         with col1:
-            selected_models_scatter = st.multiselect(
-                "Select models for scatter plot:",
-                options=[d['Model'] for d in predictions_data],
-                default=[d['Model'] for d in predictions_data],
-                key=f"model_select_scatter_{coin_index}"
-            )
-            
             fig_scatter = go.Figure()
             
-            for pred_data in predictions_data:
-                if pred_data['Model'] in selected_models_scatter:
-                    fig_scatter.add_trace(go.Scatter(
-                        x=pred_data['Actual'],
-                        y=pred_data['Predicted'],
-                        mode='markers',
-                        name=pred_data['Model'],
-                        marker=dict(size=8, opacity=0.7),
-                        hovertemplate='Actual: %{x:.4f}<br>Predicted: %{y:.4f}'
-                    ))
+            fig_scatter.add_trace(go.Scatter(
+                x=predictions_data[0]['Actual'],
+                y=predictions_data[0]['Predicted'],
+                mode='markers',
+                name=selected_model,
+                marker=dict(size=8, opacity=0.7),
+                hovertemplate='Actual: %{x:.4f}<br>Predicted: %{y:.4f}'
+            ))
             
             # Add perfect prediction line
-            min_val = min(min(pred_data['Actual']) for pred_data in predictions_data)
-            max_val = max(max(pred_data['Actual']) for pred_data in predictions_data)
+            min_val = min(predictions_data[0]['Actual'])
+            max_val = max(predictions_data[0]['Actual'])
             fig_scatter.add_trace(go.Scatter(
                 x=[min_val, max_val],
                 y=[min_val, max_val],
@@ -1383,7 +1312,7 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
             ))
             
             fig_scatter.update_layout(
-                title='Actual vs Predicted Values',
+                title=f'Actual vs Predicted Values ({selected_model})',
                 xaxis_title='Actual Price',
                 yaxis_title='Predicted Price',
                 showlegend=True,
@@ -1392,13 +1321,13 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
             st.plotly_chart(fig_scatter, use_container_width=True)
         
         with col2:
-            st.metric("Best Model", metrics_df['R2'].idxmax())
-            st.metric("Highest R² Score", f"{metrics_df['R2'].max():.4f}")
-            st.metric("Lowest RMSE", f"{metrics_df['RMSE'].min():.4f}")
+            st.metric("R² Score", f"{metrics_df.loc[selected_model, 'R2']:.4f}")
+            st.metric("RMSE", f"{metrics_df.loc[selected_model, 'RMSE']:.4f}")
+            st.metric("MAE", f"{metrics_df.loc[selected_model, 'MAE']:.4f}")
             st.download_button(
                 "Download Plot Data",
                 pd.DataFrame(predictions_data).to_csv().encode('utf-8'),
-                file_name=f'{coin_name}_prediction_data.csv',
+                file_name=f'{coin_name}_{selected_model}_prediction_data.csv',
                 mime='text/csv',
                 key=f"dl_pred_data_{coin_index}"
             )
