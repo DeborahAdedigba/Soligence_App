@@ -1069,8 +1069,8 @@ def plot_coin_scatter():
 
 def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
     """
-    Evaluate machine learning models for a specific cryptocurrency with version compatibility checks
-    and automatic recovery if models fail to load.
+    Evaluate machine learning models for a specific cryptocurrency with enhanced visualizations
+    and interactive elements.
     """
     try:
         # Validate input data
@@ -1081,47 +1081,53 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
         coin_name = data.columns[coin_index]
         model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index+1}"
         
-        # Display version requirements if they exist
+        # Display version requirements in expander
         req_file = f"{model_dir}/requirements.txt"
         if os.path.exists(req_file):
-            with open(req_file) as f:
-                st.info(f"Model version requirements:\n```\n{f.read()}\n```")
+            with st.expander("Model Version Requirements", expanded=False):
+                with open(req_file) as f:
+                    st.code(f.read())
         
         # Check if models exist, if not train them
         if not os.path.exists(model_dir):
-            st.warning(f"No trained models found for {coin_name}. Training models now...")
-            train_models_for_coin(data, coin_index)
-            st.success("Models trained successfully!")
+            with st.status("Training models...", expanded=True) as status:
+                st.write(f"No trained models found for {coin_name}. Training models now...")
+                train_models_for_coin(data, coin_index)
+                status.update(label="Models trained successfully!", state="complete")
         
         # Prepare data with lag features
-        data_prep = data.copy()
-        for lag in range(1, 4):
-            data_prep[f'{coin_name}_lag_{lag}'] = data_prep[coin_name].shift(lag)
-        data_prep.dropna(inplace=True)
-        
-        features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
-        X = data_prep[features]
-        y = data_prep[coin_name]
-        
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        
+        with st.spinner("Preparing data..."):
+            data_prep = data.copy()
+            for lag in range(1, 4):
+                data_prep[f'{coin_name}_lag_{lag}'] = data_prep[coin_name].shift(lag)
+            data_prep.dropna(inplace=True)
+            
+            features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
+            X = data_prep[features]
+            y = data_prep[coin_name]
+            
+            # Time-based split instead of random for time series
+            split_idx = int(len(X) * 0.8)
+            X_train, X_test = X[:split_idx], X[split_idx:]
+            y_train, y_test = y[:split_idx], y[split_idx:]
+
         # Model loading with error recovery
         models = {}
         retrained = False
         try:
-            models = {
-                'GRADIENT BOOSTING': joblib.load(f"{model_dir}/gradient_boosting_model.pkl"),
-                'SVR': joblib.load(f"{model_dir}/svr_model.pkl"),
-                'XGBOOST': joblib.load(f"{model_dir}/xgboost_model.pkl"),
-                'LSTM': tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
-            }
+            with st.spinner("Loading models..."):
+                models = {
+                    'GRADIENT BOOSTING': joblib.load(f"{model_dir}/gradient_boosting_model.pkl"),
+                    'SVR': joblib.load(f"{model_dir}/svr_model.pkl"),
+                    'XGBOOST': joblib.load(f"{model_dir}/xgboost_model.pkl"),
+                    'LSTM': tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
+                }
         except Exception as e:
-            st.warning(f"Model loading failed due to version mismatch. Retraining models...")
-            with st.spinner("Retraining models..."):
+            with st.status("Model version mismatch detected - retraining models...", expanded=True) as status:
+                st.warning(f"Model loading failed: {str(e)}")
                 train_models_for_coin(data, coin_index)
                 retrained = True
                 
-                # Second attempt after retraining
                 try:
                     models = {
                         'GRADIENT BOOSTING': joblib.load(f"{model_dir}/gradient_boosting_model.pkl"),
@@ -1129,7 +1135,9 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
                         'XGBOOST': joblib.load(f"{model_dir}/xgboost_model.pkl"),
                         'LSTM': tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
                     }
+                    status.update(label="Models retrained successfully!", state="complete")
                 except Exception as e:
+                    status.update(label="Model loading failed again", state="error")
                     st.error(f"Model loading failed again: {str(e)}")
                     return
 
@@ -1147,112 +1155,252 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
         # Evaluation metrics storage
         eval_metrics = {}
         predictions_data = []
+        time_series_data = []
 
-        for model_name in models_to_evaluate:
-            if models[model_name] is None:
-                st.warning(f"Skipping {model_name} - model not available")
-                continue
+        with st.spinner("Evaluating models..."):
+            for model_name in models_to_evaluate:
+                if models[model_name] is None:
+                    st.warning(f"Skipping {model_name} - model not available")
+                    continue
 
-            try:
-                # Make predictions
-                if model_name == 'LSTM':
-                    X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
-                    predictions = models[model_name].predict(X_test_array).flatten()
-                else:
-                    predictions = models[model_name].predict(X_test)
+                try:
+                    # Make predictions
+                    if model_name == 'LSTM':
+                        X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
+                        predictions = models[model_name].predict(X_test_array).flatten()
+                    else:
+                        predictions = models[model_name].predict(X_test)
 
-                # Calculate metrics
-                metrics = {
-                    'MAE': mean_absolute_error(y_test, predictions),
-                    'MSE': mean_squared_error(y_test, predictions),
-                    'RMSE': np.sqrt(mean_squared_error(y_test, predictions)),
-                    'MAPE': np.mean(np.abs((y_test - predictions) / y_test)) * 100,
-                    'R2': r2_score(y_test, predictions)
-                }
-                eval_metrics[model_name] = metrics
+                    # Calculate metrics
+                    metrics = {
+                        'MAE': mean_absolute_error(y_test, predictions),
+                        'MSE': mean_squared_error(y_test, predictions),
+                        'RMSE': np.sqrt(mean_squared_error(y_test, predictions)),
+                        'MAPE': np.mean(np.abs((y_test - predictions) / y_test)) * 100,
+                        'R2': r2_score(y_test, predictions)
+                    }
+                    eval_metrics[model_name] = metrics
 
-                # Store prediction data for visualization
-                predictions_data.append({
-                    'Model': model_name,
-                    'Actual': y_test,
-                    'Predicted': predictions
-                })
+                    # Store data for visualizations
+                    predictions_data.append({
+                        'Model': model_name,
+                        'Actual': y_test,
+                        'Predicted': predictions
+                    })
+                    
+                    # Store time series data
+                    time_series_data.append({
+                        'Model': model_name,
+                        'Dates': data_prep.index[split_idx:],
+                        'Actual': y_test,
+                        'Predicted': predictions
+                    })
 
-            except Exception as e:
-                st.error(f"Error evaluating {model_name}: {str(e)}")
-                continue
+                except Exception as e:
+                    st.error(f"Error evaluating {model_name}: {str(e)}")
+                    continue
 
         # Display results
         if not eval_metrics:
             st.error("No models were successfully evaluated")
             return
 
-        st.subheader(f"Evaluation Results for {coin_name}")
+        st.subheader(f"📊 Evaluation Results for {coin_name}")
         
-        # Metrics table
-        metrics_df = pd.DataFrame.from_dict(eval_metrics, orient='index')
-        st.dataframe(metrics_df.style.format({
-            'MAE': '{:.4f}',
-            'MSE': '{:.4f}',
-            'RMSE': '{:.4f}',
-            'MAPE': '{:.2f}%',
-            'R2': '{:.4f}'
-        }))
+        # Metrics table with enhanced styling
+        with st.expander("Detailed Metrics", expanded=True):
+            metrics_df = pd.DataFrame.from_dict(eval_metrics, orient='index')
+            
+            # Apply conditional formatting
+            def color_metric(val, metric_name):
+                if metric_name == 'R2':
+                    # Green for higher R2 (better)
+                    color = 'green' if val > 0.7 else 'orange' if val > 0.5 else 'red'
+                else:
+                    # Red for higher error metrics (worse)
+                    color = 'red' if val > metrics_df[metric_name].mean() else 'green'
+                return f'color: {color}; font-weight: bold'
+            
+            styled_metrics = metrics_df.style.format({
+                'MAE': '{:.4f}',
+                'MSE': '{:.4f}',
+                'RMSE': '{:.4f}',
+                'MAPE': '{:.2f}%',
+                'R2': '{:.4f}'
+            }).applymap(lambda x: 'font-weight: bold', subset=['R2'])
+            
+            # Apply color to each metric column
+            for metric in metrics_df.columns:
+                styled_metrics = styled_metrics.applymap(
+                    lambda x, m=metric: color_metric(x, m), 
+                    subset=[metric]
+                )
+            
+            st.dataframe(styled_metrics, use_container_width=True)
+            
+            # Add download button
+            csv = metrics_df.to_csv().encode('utf-8')
+            st.download_button(
+                label="Download Metrics as CSV",
+                data=csv,
+                file_name=f'{coin_name}_model_metrics.csv',
+                mime='text/csv'
+            )
 
-        # Metrics visualization
-        st.subheader("Model Comparison")
-        fig = go.Figure()
-        for metric in ['MAE', 'RMSE', 'R2']:
-            fig.add_trace(go.Bar(
-                x=metrics_df.index,
-                y=metrics_df[metric],
-                name=metric,
-                text=metrics_df[metric].round(4),
-                textposition='auto'
-            ))
-        fig.update_layout(
-            barmode='group',
-            title='Model Performance Comparison',
-            xaxis_title='Model',
-            yaxis_title='Metric Value'
+        # Model comparison visualization
+        st.subheader("📈 Model Performance Comparison")
+        tab1, tab2 = st.tabs(["Bar Chart", "Radar Chart"])
+        
+        with tab1:
+            fig_bar = go.Figure()
+            metrics_to_show = st.multiselect(
+                "Select metrics to compare:",
+                options=['MAE', 'RMSE', 'R2', 'MAPE'],
+                default=['MAE', 'RMSE', 'R2']
+            )
+            
+            for metric in metrics_to_show:
+                fig_bar.add_trace(go.Bar(
+                    x=metrics_df.index,
+                    y=metrics_df[metric],
+                    name=metric,
+                    text=metrics_df[metric].round(4),
+                    textposition='auto',
+                    texttemplate='%{text:.3f}',
+                    hovertemplate='%{x}<br>%{y:.4f}'
+                ))
+            
+            fig_bar.update_layout(
+                barmode='group',
+                title='Model Performance Comparison',
+                xaxis_title='Model',
+                yaxis_title='Metric Value',
+                hovermode="x unified",
+                height=500
+            )
+            st.plotly_chart(fig_bar, use_container_width=True)
+        
+        with tab2:
+            fig_radar = go.Figure()
+            
+            for model in metrics_df.index:
+                fig_radar.add_trace(go.Scatterpolar(
+                    r=metrics_df.loc[model].values,
+                    theta=metrics_df.columns,
+                    fill='toself',
+                    name=model,
+                    hovertemplate='%{theta}: %{r:.4f}'
+                ))
+            
+            fig_radar.update_layout(
+                polar=dict(
+                    radialaxis=dict(visible=True)
+                ),
+                title='Radar Chart Comparison',
+                height=500
+            )
+            st.plotly_chart(fig_radar, use_container_width=True)
+
+        # Time Series Visualization
+        st.subheader("⏳ Time Series Performance")
+        selected_models = st.multiselect(
+            "Select models to display:",
+            options=[d['Model'] for d in time_series_data],
+            default=[d['Model'] for d in time_series_data]
         )
-        st.plotly_chart(fig)
-
-        # Actual vs Predicted visualization
-        st.subheader("Actual vs Predicted Values")
-        fig2 = go.Figure()
-        for pred_data in predictions_data:
-            fig2.add_trace(go.Scatter(
-                x=y_test,
-                y=pred_data['Predicted'],
-                mode='markers',
-                name=pred_data['Model'],
-                marker=dict(size=8, opacity=0.6)
-            ))
-        # Add perfect prediction line
-        fig2.add_trace(go.Scatter(
-            x=[y_test.min(), y_test.max()],
-            y=[y_test.min(), y_test.max()],
+        
+        fig_ts = go.Figure()
+        
+        # Add actual values first
+        fig_ts.add_trace(go.Scatter(
+            x=time_series_data[0]['Dates'],
+            y=time_series_data[0]['Actual'],
             mode='lines',
-            name='Perfect Prediction',
-            line=dict(color='black', dash='dash')
+            name='Actual',
+            line=dict(color='black', width=2),
+            hovertemplate='Date: %{x}<br>Price: %{y:.4f}'
         ))
-        fig2.update_layout(
-            title='Actual vs Predicted Values',
-            xaxis_title='Actual Price',
-            yaxis_title='Predicted Price',
-            showlegend=True
+        
+        # Add predicted values for selected models
+        for ts_data in time_series_data:
+            if ts_data['Model'] in selected_models:
+                fig_ts.add_trace(go.Scatter(
+                    x=ts_data['Dates'],
+                    y=ts_data['Predicted'],
+                    mode='lines',
+                    name=f"{ts_data['Model']} Predicted",
+                    line=dict(dash='dash'),
+                    hovertemplate='Date: %{x}<br>Predicted: %{y:.4f}'
+                ))
+        
+        fig_ts.update_layout(
+            title='Actual vs Predicted Over Time',
+            xaxis_title='Date',
+            yaxis_title='Price',
+            hovermode="x unified",
+            height=500
         )
-        st.plotly_chart(fig2)
+        st.plotly_chart(fig_ts, use_container_width=True)
+
+        # Actual vs Predicted scatter plot
+        st.subheader("🎯 Prediction Accuracy")
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            fig_scatter = go.Figure()
+            
+            for pred_data in predictions_data:
+                if pred_data['Model'] in selected_models:
+                    fig_scatter.add_trace(go.Scatter(
+                        x=pred_data['Actual'],
+                        y=pred_data['Predicted'],
+                        mode='markers',
+                        name=pred_data['Model'],
+                        marker=dict(size=8, opacity=0.7),
+                        hovertemplate='Actual: %{x:.4f}<br>Predicted: %{y:.4f}'
+                    ))
+            
+            # Add perfect prediction line
+            min_val = min(y_test.min(), predictions.min())
+            max_val = max(y_test.max(), predictions.max())
+            fig_scatter.add_trace(go.Scatter(
+                x=[min_val, max_val],
+                y=[min_val, max_val],
+                mode='lines',
+                name='Perfect Prediction',
+                line=dict(color='red', dash='dash'),
+                hovertemplate=None
+            ))
+            
+            fig_scatter.update_layout(
+                title='Actual vs Predicted Values',
+                xaxis_title='Actual Price',
+                yaxis_title='Predicted Price',
+                showlegend=True,
+                height=500
+            )
+            st.plotly_chart(fig_scatter, use_container_width=True)
+        
+        with col2:
+            st.metric("Best Model", metrics_df['R2'].idxmax())
+            st.metric("Highest R² Score", f"{metrics_df['R2'].max():.4f}")
+            st.metric("Lowest RMSE", f"{metrics_df['RMSE'].min():.4f}")
+            st.download_button(
+                "Download Plot Data",
+                pd.DataFrame(predictions_data).to_csv().encode('utf-8'),
+                file_name=f'{coin_name}_prediction_data.csv',
+                mime='text/csv'
+            )
 
         # Show retrained notice if applicable
         if retrained:
-            st.info("Note: Models were retrained with current environment settings")
+            st.info("ℹ️ Note: Models were retrained with current environment settings")
 
     except Exception as e:
         st.error(f"An unexpected error occurred: {str(e)}")
         st.error("Please check your data and model files")
 
+#
 def plot_actual_forecast_with_confidence(actual, predictions, periods, upper_bound, lower_bound, coin_name, model_name):
     """Enhanced visualization of actual vs predicted values with confidence interval"""
     fig = go.Figure()
