@@ -829,21 +829,58 @@ def home_section():
   
 
 def about_us():
-    """Display information about the application's features and capabilities."""
+    """Display information about the application's features and capabilities with improved visibility."""
     
+    # Custom CSS for better visibility
+    st.markdown("""
+    <style>
+    .feature-card {
+        background-color: rgba(255, 255, 255, 0.85);
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .tech-card {
+        background-color: rgba(245, 245, 245, 0.9);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .section-header {
+        color: #2c3e50;
+        background-color: rgba(255, 255, 255, 0.7);
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        margin-bottom: 1rem;
+    }
+    .disclaimer-box {
+        background-color: rgba(255, 243, 205, 0.9);
+        border-left: 5px solid #ffc107;
+        padding: 1rem;
+        border-radius: 5px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     # Header with logo and title
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        st.image("https://via.placeholder.com/150", width=150)  # Replace with your app logo
-    with col2:
-        st.title("About SOLiGence")
-        st.caption("Intelligent Cryptocurrency Analysis Platform")
-    
-    st.divider()
+    st.markdown("""
+    <div style="background-color: rgba(255, 255, 255, 0.8); padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem;">
+        <div style="display: flex; align-items: center;">
+            <div style="flex: 0 0 150px;">
+                <img src="https://via.placeholder.com/150" width="150" style="border-radius: 8px;">
+            </div>
+            <div style="flex: 1; padding-left: 1.5rem;">
+                <h1 style="color: #2c3e50; margin-bottom: 0.2rem;">About SOLiGence</h1>
+                <p style="color: #5d6d7e; font-size: 1.1rem;">Intelligent Cryptocurrency Analysis Platform</p>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Core Features
     with st.container():
-        st.header("✨ Key Features")
+        st.markdown('<div class="section-header"><h2>✨ Key Features</h2></div>', unsafe_allow_html=True)
         
         features = [
             ("📊 Comprehensive Data Analysis", 
@@ -866,15 +903,19 @@ def about_us():
         ]
         
         for title, desc in features:
-            with st.expander(title, expanded=True):
-                st.write(desc)
+            st.markdown(f"""
+            <div class="feature-card">
+                <h3 style="color: #2c3e50; margin-top: 0;">{title}</h3>
+                <p style="color: #4a4a4a;">{desc}</p>
+            </div>
+            """, unsafe_allow_html=True)
     
     st.divider()
     
     # Technology Stack
     with st.container():
-        st.header("🛠️ Under the Hood")
-        st.write("This application leverages cutting-edge technologies:")
+        st.markdown('<div class="section-header"><h2>🛠️ Under the Hood</h2></div>', unsafe_allow_html=True)
+        st.markdown('<p style="color: #4a4a4a;">This application leverages cutting-edge technologies:</p>', unsafe_allow_html=True)
         
         tech_cols = st.columns(3)
         tech_stack = [
@@ -887,40 +928,53 @@ def about_us():
         ]
         
         for i, (category, tools) in enumerate(tech_stack):
-            tech_cols[i%3].code(f"{category}:\n{tools}")
+            tech_cols[i%3].markdown(f"""
+            <div class="tech-card">
+                <strong style="color: #2c3e50;">{category}</strong>
+                <div style="color: #4a4a4a; font-family: monospace; margin-top: 0.5rem;">{tools}</div>
+            </div>
+            """, unsafe_allow_html=True)
     
     st.divider()
     
     # Data and Models
     with st.container():
-        st.header("📦 Data & Models")
+        st.markdown('<div class="section-header"><h2>📦 Data & Models</h2></div>', unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("Dataset Information")
-            st.write("""
-            - 30 major cryptocurrencies
-            - 4 years of historical data
-            - Daily price/volume metrics
-            - Cleaned and normalized
-            - Automatic updates
-            """)
+            st.markdown("""
+            <div class="feature-card" style="height: 100%;">
+                <h3 style="color: #2c3e50; margin-top: 0;">Dataset Information</h3>
+                <ul style="color: #4a4a4a;">
+                    <li>30 major cryptocurrencies</li>
+                    <li>4 years of historical data</li>
+                    <li>Daily price/volume metrics</li>
+                    <li>Cleaned and normalized</li>
+                    <li>Automatic updates</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
             
         with col2:
-            st.subheader("Prediction Models")
-            st.write("""
-            - **Gradient Boosting**: Best for general trends
-            - **SVR**: Effective in volatile markets
-            - **XGBoost**: High accuracy with feature importance
-            - **LSTM**: Captures temporal patterns
-            """)
+            st.markdown("""
+            <div class="feature-card" style="height: 100%;">
+                <h3 style="color: #2c3e50; margin-top: 0;">Prediction Models</h3>
+                <ul style="color: #4a4a4a;">
+                    <li><strong>Gradient Boosting</strong>: Best for general trends</li>
+                    <li><strong>SVR</strong>: Effective in volatile markets</li>
+                    <li><strong>XGBoost</strong>: High accuracy with feature importance</li>
+                    <li><strong>LSTM</strong>: Captures temporal patterns</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
     
     st.divider()
     
     # Usage Guide
     with st.container():
-        st.header("📚 How To Use")
+        st.markdown('<div class="section-header"><h2>📚 How To Use</h2></div>', unsafe_allow_html=True)
         
         steps = [
             ("1. Explore Data", "Use the Dataset section to filter, sort and analyze raw market data"),
@@ -931,20 +985,29 @@ def about_us():
         ]
         
         for title, desc in steps:
-            with st.expander(title, expanded=False):
-                st.write(desc)
+            st.markdown(f"""
+            <div class="feature-card">
+                <h4 style="color: #2c3e50; margin-top: 0;">{title}</h4>
+                <p style="color: #4a4a4a;">{desc}</p>
+            </div>
+            """, unsafe_allow_html=True)
     
     st.divider()
     
     # Disclaimer
     with st.container():
-        st.warning("""
-        **Important Notice:**  
-        This application provides analytical tools for educational purposes only. 
-        Cryptocurrency trading involves substantial risk. Past performance does not 
-        guarantee future results. Always conduct your own research before making 
-        investment decisions.
-        """)
+        st.markdown("""
+        <div class="disclaimer-box">
+            <h3 style="color: #856404; margin-top: 0;">⚠️ Important Notice</h3>
+            <p style="color: #856404;">
+            This application provides analytical tools for educational purposes only. 
+            Cryptocurrency trading involves substantial risk. Past performance does not 
+            guarantee future results. Always conduct your own research before making 
+            investment decisions.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
 def dataset_section():
     """Display and interact with cryptocurrency dataset with improved UI/UX."""
     
