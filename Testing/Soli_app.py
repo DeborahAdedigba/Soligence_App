@@ -1382,6 +1382,7 @@ def analyze_coin_correlation():
 
 def plot_moving_average():
     """Enhanced moving average visualization while preserving sidebar structure."""
+    st.header("Plotting Moving AVerage")
     
     # Get available coins from the data
     available_coins = combined_data['Crypto'].unique()
