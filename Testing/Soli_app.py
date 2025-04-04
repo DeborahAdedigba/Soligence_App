@@ -1627,7 +1627,7 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
 
 def create_prediction_interface(selected_data):
     """Create unified prediction interface"""
-    st.markdown("## Buy and Sell Price Prediction with Models")
+    st.markdown("## Prediction with Models")
     
     with st.form(key="prediction_form"):
         col1, col2, col3 = st.columns(3)
@@ -2051,7 +2051,7 @@ def main():
             st.markdown("## Buy/Sell Recommendation Prediction")
             
             if strategy == "Moving Averages":
-                st.markdown("## Buy and Sell Price Prediction with Moving Average")
+                st.markdown("## Prediction with Moving Average")
             
                 col1, col2 = st.columns([2, 1])
                 with col1:
