@@ -1877,56 +1877,60 @@ def find_best_coins(model_type, desired_profit, num_days):
     
     # Display recommendations
     # Display recommendations
-    for i, (coin, data) in enumerate(recommended_coins[:2]):
+    def display_recommendation(coin, data, desired_profit, num_days, is_top=True):
+        """Display a recommendation using Streamlit components"""
         is_positive = data['profit'] >= desired_profit
-        box_class = "success-box" if is_positive else "warning-box"
-        title = "Top Recommendation" if i == 0 else "Alternative Option"
-        profit_class = "profit-positive" if is_positive else "profit-negative"
+        title = "🔥 Top Recommendation" if is_top else "💡 Alternative Option"
         
-        # Create the full HTML block
-        result_html = f"""
-        <div class="recommendation-box {box_class}">
-            <div class="metric-title">{title}</div>
-            <div class="metric-value">{coin}</div>
+        # Create container with border
+        with st.container():
+            st.markdown(f"### {title}")
+            st.markdown(f"#### {coin}")
             
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                <div>
-                    <div class="metric-title">Current Price</div>
-                    <div>${data['current_price']:,.2f}</div>
-                </div>
-                <div>
-                    <div class="metric-title">Predicted Price</div>
-                    <div>${data['future_price']:,.2f}</div>
-                    <div class="price-change {'profit-positive' if data['percent_change'] >= 0 else 'profit-negative'}">
-                        ({data['percent_change']:+.2f}%)
-                    </div>
-                </div>
-            </div>
+            # Current and predicted price in columns
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Current Price**")
+                st.markdown(f"${data['current_price']:,.2f}")
+            with col2:
+                st.markdown("**Predicted Price**")
+                color = "green" if data['percent_change'] >= 0 else "red"
+                st.markdown(f"${data['future_price']:,.2f} <span style='color:{color}'>({data['percent_change']:+.2f}%)</span>", 
+                        unsafe_allow_html=True)
             
-            <div style="margin-bottom: 10px;">
-                <span class="metric-title">Predicted Profit: </span>
-                <span class="{profit_class}">${data['profit']:,.2f}</span>
-            </div>
+            # Profit information
+            profit_color = "green" if is_positive else "red"
+            st.markdown("**Predicted Profit**")
+            st.markdown(f"<span style='color:{profit_color}'>${data['profit']:,.2f}</span>", 
+                    unsafe_allow_html=True)
             
-            <div style="margin-bottom: 10px;">
-                <span class="metric-title">Target Profit: </span>
-                <span>${desired_profit:,.2f}</span>
-            </div>
+            # Target and time period
+            st.markdown("**Target Profit**")
+            st.markdown(f"${desired_profit:,.2f}")
             
-            <div style="margin-bottom: 10px;">
-                <span class="metric-title">Time Period: </span>
-                <span>{num_days} days</span>
-            </div>
+            st.markdown("**Time Period**")
+            st.markdown(f"{num_days} days")
             
-            <div>
-                <span class="metric-title">Target Achievement: </span>
-                <span>{((data['profit'] / desired_profit) * 100 if desired_profit != 0 else 0):.1f}%</span>
-            </div>
-        </div>
-        """
+            # Target achievement
+            achievement = (data['profit'] / desired_profit) * 100 if desired_profit != 0 else 0
+            st.markdown("**Target Achievement**")
+            st.markdown(f"{achievement:.1f}%")
+            
+            st.markdown("---")
+
+    # In your find_best_coins function, replace the display section with:
+    if recommended_coins:
+        st.markdown("## Prediction Results")
         
-        # Display the entire block as HTML
-        st.markdown(result_html, unsafe_allow_html=True)
+        # First recommendation
+        if len(recommended_coins) >= 1:
+            coin, data = recommended_coins[0]
+            display_recommendation(coin, data, desired_profit, num_days, is_top=True)
+        
+        # Second recommendation
+        if len(recommended_coins) >= 2:
+            coin, data = recommended_coins[1]
+            display_recommendation(coin, data, desired_profit, num_days, is_top=False)
 
 def get_top_crypto_news(crypto, num_stories=5, news_source='all'):
     if news_source == 'all' or news_source == 'Cryptoslate':
