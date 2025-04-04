@@ -823,17 +823,7 @@ def home_section():
             </div>
             """, unsafe_allow_html=True)
             
-        with connect_col2:
-            st.markdown("""
-            <div style="margin-top: 1rem;">
-                <h4 style="color: #2c3e50;">Stay Updated</h4>
-                <p style="color: #555;">Subscribe to our newsletter for market insights and platform updates</p>
-                <input type="email" placeholder="Your email address" style="padding: 0.5rem; border-radius: 5px; border: 1px solid #ddd; width: 70%;">
-                <button style="background-color: #3498db; color: white; border: none; padding: 0.5rem 1rem; border-radius: 5px; margin-left: 0.5rem;">
-                    Subscribe
-                </button>
-            </div>
-            """, unsafe_allow_html=True)
+        
     
   
 
