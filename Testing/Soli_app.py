@@ -693,18 +693,7 @@ def home_section():
         with contact_col2:
             st.subheader("Social Media")
             st.markdown("[💼 LinkedIn](https://www.linkedin.com/in/deborah-adedigba-bb917314b/)")
-    
-    
-    # About section (always visible)
-    st.markdown("---")
-    st.header("About SOLiGence")
-    st.write("""
-    SOLiGence (Solent Intelligence) is a leading financial multinational organization specializing in:
-    - Stock and shares analysis
-    - Savings optimization
-    - Investment strategies
-    - Cryptocurrency trading intelligence
-    """)
+
 
 def about_us():
     st.title("About Solent Intelligence Ltd.")
