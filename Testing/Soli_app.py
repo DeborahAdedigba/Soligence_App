@@ -1337,91 +1337,7 @@ def evaluate_and_plot_model(coin_index, model_choice, frequency, num_periods):
     
     plot_actual_forecast_with_confidence(y_test[-num_periods:], predictions, periods, upper_bound, lower_bound)
 
-def apply_ma_trading_strategy(chosen_coin):
-    """Apply moving average trading strategy with error handling"""
-    try:
-        # Filter data for selected coin
-        selected_data = combined_data[combined_data['Crypto'] == chosen_coin].copy()
-        selected_data.dropna(subset=['Close'], inplace=True)
-        
-        # Handle datetime index safely
-        if not isinstance(selected_data.index, pd.DatetimeIndex):
-            selected_data.index = pd.to_datetime(selected_data.index)
-        if hasattr(selected_data.index, 'tz') and selected_data.index.tz is not None:
-            selected_data.index = selected_data.index.tz_localize(None)
-        
-        # Calculate moving averages
-        ma_7, ma_14 = 7, 14
-        selected_data[f'MA_{ma_7}'] = SMAIndicator(
-            close=selected_data['Close'], 
-            window=ma_7
-        ).sma_indicator()
-        selected_data[f'MA_{ma_14}'] = SMAIndicator(
-            close=selected_data['Close'], 
-            window=ma_14
-        ).sma_indicator()
-        
-        # Generate signals
-        selected_data['Buy_Signal'] = np.where(
-            selected_data[f'MA_{ma_7}'] > selected_data[f'MA_{ma_14}'].shift(1), 1, 0
-        )
-        selected_data['Sell_Signal'] = np.where(
-            selected_data[f'MA_{ma_7}'] < selected_data[f'MA_{ma_14}'].shift(1), -1, 0
-        )
-        
-        # Create figure
-        fig = go.Figure()
-        
-        # Add traces with proper formatting
-        traces = [
-            ('Close Price', 'blue', None, selected_data['Close']),
-            (f'{ma_7}-day MA', 'green', None, selected_data[f'MA_{ma_7}']),
-            (f'{ma_14}-day MA', 'red', None, selected_data[f'MA_{ma_14}']),
-            ('Buy Signal', 'green', 'triangle-up', 
-             selected_data.loc[selected_data['Buy_Signal'] == 1, 'Close']),
-            ('Sell Signal', 'red', 'triangle-down',
-             selected_data.loc[selected_data['Sell_Signal'] == -1, 'Close'])
-        ]
-        
-        for name, color, symbol, y in traces:
-            fig.add_trace(go.Scatter(
-                x=selected_data.index,
-                y=y,
-                name=name,
-                mode='lines' if symbol is None else 'markers',
-                line=dict(color=color) if symbol is None else None,
-                marker=dict(color=color, size=10, symbol=symbol) if symbol else None
-            ))
-        
-        # Add current price line
-        current_price = selected_data['Close'].iloc[-1]
-        fig.add_trace(go.Scatter(
-            x=[selected_data.index[0], selected_data.index[-1]],
-            y=[current_price, current_price],
-            mode='lines',
-            name='Current Price',
-            line=dict(color='gray', dash='dash')
-        ))
-        
-        # Update layout
-        fig.update_layout(
-            title=f'Trading Strategy for {chosen_coin}',
-            xaxis_title='Date',
-            yaxis_title='Price',
-            hovermode='x unified',
-            showlegend=True
-        )
-        
-        # Display
-        st.plotly_chart(fig, use_container_width=True)
-        st.metric(label="Current Price", value=f"{current_price:.4f}")
-        
-        return selected_data
-        
-    except Exception as e:
-        st.error(f"Error generating trading strategy: {str(e)}")
-        logging.error(f"Error in apply_ma_trading_strategy: {str(e)}", exc_info=True)
-        return None
+
 
 from datetime import datetime, timedelta
 import pandas as pd
@@ -1525,10 +1441,90 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
         return None, None
 
 def apply_ma_trading_strategy(chosen_coin):
-    """Apply moving average strategy to selected coin data"""
-    # This is a placeholder - implement your actual data loading logic here
-    # Should return a DataFrame with 'Close' column and datetime index
-    return pd.DataFrame()
+    """Apply moving average trading strategy with error handling"""
+    try:
+        # Filter data for selected coin
+        selected_data = combined_data[combined_data['Crypto'] == chosen_coin].copy()
+        selected_data.dropna(subset=['Close'], inplace=True)
+        
+        # Handle datetime index safely
+        if not isinstance(selected_data.index, pd.DatetimeIndex):
+            selected_data.index = pd.to_datetime(selected_data.index)
+        if hasattr(selected_data.index, 'tz') and selected_data.index.tz is not None:
+            selected_data.index = selected_data.index.tz_localize(None)
+        
+        # Calculate moving averages
+        ma_7, ma_14 = 7, 14
+        selected_data[f'MA_{ma_7}'] = SMAIndicator(
+            close=selected_data['Close'], 
+            window=ma_7
+        ).sma_indicator()
+        selected_data[f'MA_{ma_14}'] = SMAIndicator(
+            close=selected_data['Close'], 
+            window=ma_14
+        ).sma_indicator()
+        
+        # Generate signals
+        selected_data['Buy_Signal'] = np.where(
+            selected_data[f'MA_{ma_7}'] > selected_data[f'MA_{ma_14}'].shift(1), 1, 0
+        )
+        selected_data['Sell_Signal'] = np.where(
+            selected_data[f'MA_{ma_7}'] < selected_data[f'MA_{ma_14}'].shift(1), -1, 0
+        )
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Add traces with proper formatting
+        traces = [
+            ('Close Price', 'blue', None, selected_data['Close']),
+            (f'{ma_7}-day MA', 'green', None, selected_data[f'MA_{ma_7}']),
+            (f'{ma_14}-day MA', 'red', None, selected_data[f'MA_{ma_14}']),
+            ('Buy Signal', 'green', 'triangle-up', 
+             selected_data.loc[selected_data['Buy_Signal'] == 1, 'Close']),
+            ('Sell Signal', 'red', 'triangle-down',
+             selected_data.loc[selected_data['Sell_Signal'] == -1, 'Close'])
+        ]
+        
+        for name, color, symbol, y in traces:
+            fig.add_trace(go.Scatter(
+                x=selected_data.index,
+                y=y,
+                name=name,
+                mode='lines' if symbol is None else 'markers',
+                line=dict(color=color) if symbol is None else None,
+                marker=dict(color=color, size=10, symbol=symbol) if symbol else None
+            ))
+        
+        # Add current price line
+        current_price = selected_data['Close'].iloc[-1]
+        fig.add_trace(go.Scatter(
+            x=[selected_data.index[0], selected_data.index[-1]],
+            y=[current_price, current_price],
+            mode='lines',
+            name='Current Price',
+            line=dict(color='gray', dash='dash')
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            title=f'Trading Strategy for {chosen_coin}',
+            xaxis_title='Date',
+            yaxis_title='Price',
+            hovermode='x unified',
+            showlegend=True
+        )
+        
+        # Display
+        st.plotly_chart(fig, use_container_width=True)
+        st.metric(label="Current Price", value=f"{current_price:.4f}")
+        
+        return selected_data
+        
+    except Exception as e:
+        st.error(f"Error generating trading strategy: {str(e)}")
+        logging.error(f"Error in apply_ma_trading_strategy: {str(e)}", exc_info=True)
+        return None
 
 def create_prediction_interface(selected_data):
     """Create the unified prediction interface with both methods"""
@@ -1968,10 +1964,10 @@ def main():
                 help="Choose between technical indicators or AI models for predictions"
             )
             
-            st.markdown("### Buy/Sell Recommendation Prediction")
+            st.markdown("## Buy/Sell Recommendation Prediction")
             
             if strategy == "Moving Averages":
-                col1, col2 = st.columns(2)
+                col1, col2 = st.columns([2, 1])
                 with col1:
                     coin = st.selectbox(
                         "Select Cryptocurrency:", 
@@ -1979,16 +1975,17 @@ def main():
                         key="ma_coin_select"
                     )
                 with col2:
-                    days = st.number_input(
+                    days = st.slider(
                         "Forecast Period (days):",
                         min_value=1, 
                         max_value=30,
                         value=10,
-                        key="ma_days_input"
+                        key="ma_days_slider"
                     )
                 
-                if st.button("Generate MA Prediction", key="ma_predict_btn"):
-                    with st.spinner("Calculating Moving Averages..."):
+                if st.button("Generate Prediction", key="ma_predict_btn", 
+                            help="Generate buy/sell recommendation based on moving averages"):
+                    with st.spinner("Analyzing market trends with Moving Averages..."):
                         determine_best_time_to_trade_future(coin, days)
             
             else:  # Machine Learning Models
