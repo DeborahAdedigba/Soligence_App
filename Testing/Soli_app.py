@@ -1381,118 +1381,52 @@ def analyze_coin_correlation():
         st.plotly_chart(fig_neg, use_container_width=True)
 
 def plot_moving_average():
-    """Enhanced moving average visualization with interactive features and better styling."""
+    """Enhanced moving average visualization while preserving sidebar structure."""
     
-    # Custom CSS for better widget styling
-    st.markdown("""
-    <style>
-    div[data-testid="stRadio"] > div {
-        flex-direction: row;
-        gap: 1rem;
-    }
-    div[data-testid="stRadio"] label {
-        background: rgba(255, 255, 255, 0.8);
-        padding: 0.5rem 1rem;
-        border-radius: 5px;
-        transition: all 0.2s;
-    }
-    div[data-testid="stRadio"] label:hover {
-        background: rgba(255, 255, 255, 0.9);
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Create two columns for layout
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        st.header("📈 Moving Average Analysis")
-        st.markdown("Visualize price trends using different moving average windows")
-    
-    with col2:
-        # Add date range selector
-        min_date = pd.to_datetime(combined_data.index.min())
-        max_date = pd.to_datetime(combined_data.index.max())
-        date_range = st.date_input(
-            "Date Range:",
-            value=(max_date - timedelta(days=365)),  # Default to last year
-            min_value=min_date,
-            max_value=max_date,
-            key="ma_date_range"
-        )
-    
-    # Get available coins and selection
+    # Get available coins from the data
     available_coins = combined_data['Crypto'].unique()
-    coin_selected = st.selectbox(
-        "Select cryptocurrency:",
-        available_coins,
-        index=0,
-        key="ma_coin_select"
-    )
     
-    # Enhanced window size selector with tooltips
-    window_size = st.radio(
-        "Moving Average Window:",
-        options=['Short (30-day MA)', 'Medium (60-day MA)', 'Long (90-day MA)'],
-        index=1,  # Default to medium
-        horizontal=True,
-        help="Select the time window for calculating the moving average"
-    )
+    # Preserve existing sidebar controls exactly as they were
+    coin_selected = st.selectbox("Select cryptocurrency:", available_coins)
+    window_size = st.radio("Window size:", ['Short (30-day MA)', 'Medium (60-day MA)', 'Long (90-day MA)'])
     
-    window_mapping = {
-        'Short (30-day MA)': 30,
-        'Medium (60-day MA)': 60,
-        'Long (90-day MA)': 90
-    }
+    window_mapping = {'Short (30-day MA)': 30, 'Medium (60-day MA)': 60, 'Long (90-day MA)': 90}
     window = window_mapping[window_size]
     
-    # Filter data for selected coin and date range
+    # Filter data for selected coin
     selected_data = combined_data[combined_data['Crypto'] == coin_selected].copy()
-    selected_data.index = pd.to_datetime(selected_data.index)
-    
-    # Handle date range selection (single date vs range)
-    if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-        start_date, end_date = date_range
-        selected_data = selected_data.loc[start_date:end_date]
-    else:
-        selected_data = selected_data.loc[date_range:]
     
     # Calculate moving average
     selected_data['MA'] = selected_data['Close'].rolling(window=window).mean()
     
-    # Create interactive plot with enhanced features
+    # Create enhanced visualization
     fig = go.Figure()
     
-    # Add price trace
+    # Price line
     fig.add_trace(go.Scatter(
         x=selected_data.index,
         y=selected_data['Close'],
         name=f'{coin_selected} Price',
         line=dict(color='#1f77b4', width=2),
-        hovertemplate='Date: %{x|%b %d, %Y}<br>Price: %{y:.2f}'
+        hovertemplate='<b>%{x|%b %d, %Y}</b><br>Price: £%{y:.2f}<extra></extra>'
     ))
     
-    # Add moving average trace
+    # Moving average line
     fig.add_trace(go.Scatter(
         x=selected_data.index,
         y=selected_data['MA'],
         name=f'{window}-day MA',
         line=dict(color='#ff7f0e', width=2, dash='dash'),
-        hovertemplate='Date: %{x|%b %d, %Y}<br>MA: %{y:.2f}'
+        hovertemplate='<b>%{x|%b %d, %Y}</b><br>MA: £%{y:.2f}<extra></extra>'
     ))
     
-    # Highlight crossover points
-    selected_data['Signal'] = np.where(
-        selected_data['Close'] > selected_data['MA'], 
-        'Above MA', 
-        'Below MA'
-    )
+    # Highlight crossovers
+    selected_data['Above_MA'] = selected_data['Close'] > selected_data['MA']
+    crossovers = selected_data[selected_data['Above_MA'] != selected_data['Above_MA'].shift(1)].index
     
-    # Add crossover markers
-    crossovers = selected_data[selected_data['Signal'] != selected_data['Signal'].shift(1)]
     fig.add_trace(go.Scatter(
-        x=crossovers.index,
-        y=crossovers['Close'],
+        x=crossovers,
+        y=selected_data.loc[crossovers, 'Close'],
         mode='markers',
         name='Crossover',
         marker=dict(
@@ -1500,19 +1434,14 @@ def plot_moving_average():
             size=10,
             symbol='diamond'
         ),
-        hovertemplate='Crossover at %{y:.2f}'
+        hovertemplate='<b>Crossover</b><br>Price: £%{y:.2f}<extra></extra>'
     ))
     
-    # Update layout with professional styling
+    # Layout enhancements
     fig.update_layout(
-        title={
-            'text': f'<b>{coin_selected} Price vs {window}-day Moving Average</b>',
-            'x': 0.5,
-            'xanchor': 'center',
-            'font': {'size': 20}
-        },
-        xaxis_title='<b>Date</b>',
-        yaxis_title='<b>Price (GBP)</b>',
+        title=f'<b>{coin_selected} Price vs {window}-day Moving Average</b>',
+        xaxis_title='Date',
+        yaxis_title='Price (GBP)',
         hovermode='x unified',
         legend=dict(
             orientation="h",
@@ -1522,89 +1451,54 @@ def plot_moving_average():
             x=1
         ),
         template='plotly_white',
-        margin=dict(l=40, r=40, t=80, b=40),
-        height=600,
-        xaxis=dict(
-            rangeselector=dict(
-                buttons=list([
-                    dict(count=1, label="1m", step="month", stepmode="backward"),
-                    dict(count=6, label="6m", step="month", stepmode="backward"),
-                    dict(count=1, label="YTD", step="year", stepmode="todate"),
-                    dict(count=1, label="1y", step="year", stepmode="backward"),
-                    dict(step="all")
-                ])
-            ),
-            rangeslider=dict(visible=True),
-            type="date"
-        )
+        margin=dict(l=40, r=40, t=60, b=40),
+        height=500
     )
     
-    # Add annotations for current values
-    last_price = selected_data['Close'].iloc[-1]
-    last_ma = selected_data['MA'].iloc[-1]
-    
-    fig.add_annotation(
-        x=selected_data.index[-1],
-        y=last_price,
-        text=f"Current: {last_price:.2f}",
-        showarrow=True,
-        arrowhead=1,
-        ax=0,
-        ay=-40,
-        bgcolor="white",
-        bordercolor="#1f77b4"
-    )
-    
-    fig.add_annotation(
-        x=selected_data.index[-1],
-        y=last_ma,
-        text=f"MA: {last_ma:.2f}",
-        showarrow=True,
-        arrowhead=1,
-        ax=0,
-        ay=40,
-        bgcolor="white",
-        bordercolor="#ff7f0e"
+    # Add range selector
+    fig.update_xaxes(
+        rangeselector=dict(
+            buttons=list([
+                dict(count=1, label="1m", step="month", stepmode="backward"),
+                dict(count=6, label="6m", step="month", stepmode="backward"),
+                dict(count=1, label="YTD", step="year", stepmode="todate"),
+                dict(count=1, label="1y", step="year", stepmode="backward"),
+                dict(step="all")
+            ])
+        ),
+        rangeslider=dict(visible=True)
     )
     
     # Display the plot
     st.plotly_chart(fig, use_container_width=True)
     
-    # Add metrics section below the chart
-    st.subheader("Key Metrics")
-    
-    col1, col2, col3 = st.columns(3)
+    # Add metrics below the chart (not in sidebar)
+    col1, col2 = st.columns(2)
     
     with col1:
+        current_price = selected_data['Close'].iloc[-1]
+        current_ma = selected_data['MA'].iloc[-1]
         st.metric(
             label="Current Price",
-            value=f"£{last_price:.2f}",
-            delta=f"{(last_price - selected_data['Close'].iloc[-2]):.2f} from previous"
+            value=f"£{current_price:.2f}",
+            delta=f"£{(current_price - selected_data['Close'].iloc[-2]):.2f} from previous"
         )
     
     with col2:
         st.metric(
             label=f"{window}-day MA",
-            value=f"£{last_ma:.2f}",
-            delta=f"{(last_price - last_ma):.2f} from price"
+            value=f"£{current_ma:.2f}",
+            delta=f"£{(current_price - current_ma):.2f} difference"
         )
     
-    with col3:
-        days_above = (selected_data['Signal'] == 'Above MA').sum()
-        percent_above = (days_above / len(selected_data)) * 100
-        st.metric(
-            label="Days Above MA",
-            value=f"{days_above} ({percent_above:.1f}%)"
-        )
-    
-    # Add interpretation guidance
-    with st.expander("💡 How to interpret moving averages", expanded=False):
+    # Interpretation help
+    with st.expander("How to interpret this chart"):
         st.markdown("""
-        - **Price above MA**: Generally considered bullish (potential uptrend)
-        - **Price below MA**: Generally considered bearish (potential downtrend)
-        - **Crossover points**: When price crosses the MA, may signal trend changes
-        - **MA slope**: Upward slope suggests strengthening trend, downward suggests weakening
-        - **Window size**: Shorter windows react faster but are more volatile, longer windows are smoother but lag more
+        - **Price above MA**: Potential bullish signal
+        - **Price below MA**: Potential bearish signal
+        - **Crossover points**: May indicate trend changes
+        - **Diamond markers**: Show where price crossed the MA
+        - Use the range selector above to zoom in/out
         """)
 
 
