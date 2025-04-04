@@ -627,7 +627,7 @@ def home_section():
     # Main header with logo and tagline
     col1, col2 = st.columns([1, 3])
     with col1:
-        st.image("https://github.com/DeborahAdedigba/Soligence_App/blob/main/Testing/soli_logoy.png?raw=true", width=150)  # Using your local logo file
+        st.image("https://dcassetcdn.com/design_img/2956478/152860/152860_16291385_2956478_2487aca1_image.jpg", width=150)  # Using your local logo file
     with col2:
         st.title("SOLiGence")
         st.markdown("**Your Intelligent Coin Trading Platform**", unsafe_allow_html=True)
