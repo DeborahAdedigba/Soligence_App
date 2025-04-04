@@ -1763,13 +1763,21 @@ def find_best_coins(model_type, desired_profit, num_days):
     # Make predictions for all coins
     for coin, model in models.items():
         try:
-            # Get percentage change prediction
+            # Get percentage change prediction (assuming model outputs decimal change)
             if model_type == 'LSTM':
                 input_data = np.array([[num_days, 0, 0]]).reshape(1, 3, 1)
-                percent_change = model.predict(input_data)[0][0]
+                predicted_change = model.predict(input_data)[0][0]
             else:
                 input_data = np.array([[num_days, 0, 0]])
-                percent_change = model.predict(input_data)[0]
+                predicted_change = model.predict(input_data)[0]
+            
+            # Convert prediction to percentage (assuming model outputs decimal)
+            percent_change = predicted_change * 100  # Convert decimal to percentage
+            
+            # Validate the prediction is reasonable
+            if abs(percent_change) > 100:  # If prediction > 100% change
+                st.warning(f"Unrealistic prediction for {coin} ({percent_change:.2f}%). Clamping to ±30%.")
+                percent_change = 30 if percent_change > 0 else -30
             
             # Calculate actual profit based on current price
             current_price = current_prices[coin]
@@ -1789,38 +1797,44 @@ def find_best_coins(model_type, desired_profit, num_days):
         st.error("No valid predictions could be generated.")
         return
     
-    # Filter and sort predictions
-    exceed_target = {k: v for k, v in predictions.items() if v['profit'] >= desired_profit}
-    below_target = {k: v for k, v in predictions.items() if v['profit'] < desired_profit}
+    # Separate coins that exceed target from those that don't
+    exceed_target = {coin: profit for coin, profit in predictions.items() if profit >= desired_profit}
+    below_target = {coin: profit for coin, profit in predictions.items() if profit < desired_profit}
+    
+    # Sort coins that exceed target by profit (descending)
+    # Sort coins below target by how close they are to target (ascending)
     
     recommended_coins = []
     
+    # If we have coins that exceed target, recommend the best ones
     if exceed_target:
-        # Sort by highest profit first
-        sorted_exceed = sorted(exceed_target.items(), 
-                             key=lambda x: x[1]['profit'], 
-                             reverse=True)
-        recommended_coins.append(sorted_exceed[0])
-        
-        # Add closest to target if available
-        if len(sorted_exceed) > 1:
-            closest = min(sorted_exceed[1:], 
-                        key=lambda x: abs(x[1]['profit'] - desired_profit))
-            recommended_coins.append(closest)
-        elif below_target:
-            closest_below = max(below_target.items(), 
-                              key=lambda x: x[1]['profit'])
-            recommended_coins.append(closest_below)
+        sorted_exceed = sorted(exceed_target.items(), key=lambda x: x[1], reverse=True)
+        # Take best performing and closest to target from those exceeding
+        if len(sorted_exceed) >= 2:
+            # Best performer
+            recommended_coins.append(sorted_exceed[0])
+            # Find closest to target but still exceeding
+            sorted_by_closeness = sorted(exceed_target.items(), key=lambda x: abs(x[1] - desired_profit))
+            recommended_coins.append(sorted_by_closeness[0])
+        else:
+            recommended_coins.append(sorted_exceed[0])
+            # If we only have one coin exceeding, get the best from below target
+            if below_target:
+                sorted_below = sorted(below_target.items(), key=lambda x: abs(x[1] - desired_profit))
+                recommended_coins.append(sorted_below[0])
     else:
-        # Get top 2 closest to target
-        sorted_below = sorted(below_target.items(), 
-                            key=lambda x: x[1]['profit'], 
-                            reverse=True)
-        recommended_coins = sorted_below[:2]
+        # If no coins exceed target, get the two closest
+        sorted_below = sorted(below_target.items(), key=lambda x: abs(x[1] - desired_profit))
+        if len(sorted_below) >= 2:
+            recommended_coins.append(sorted_below[0])
+            recommended_coins.append(sorted_below[1])
+        elif len(sorted_below) == 1:
+            recommended_coins.append(sorted_below[0])
     
-    # Display results
+    # Display results with improved formatting
     st.markdown("### Prediction Results")
     
+    # Custom CSS for styling
     st.markdown("""
     <style>
     .recommendation-box {
@@ -1853,57 +1867,68 @@ def find_best_coins(model_type, desired_profit, num_days):
     .profit-negative {
         color: #e74a3b;
     }
-    .price-change {
-        font-size: 14px;
-    }
     </style>
     """, unsafe_allow_html=True)
     
-    # Display recommendations
-    for i, (coin, data) in enumerate(recommended_coins[:2]):
-        is_positive = data['profit'] >= desired_profit
-        box_class = "success-box" if is_positive else "warning-box"
-        title = "Top Recommendation" if i == 0 else "Alternative Option"
+    # First recommendation
+    if len(recommended_coins) >= 1:
+        coin, profit = recommended_coins[0]
+        box_class = "success-box" if profit >= desired_profit else "warning-box"
         
         st.markdown(f"""
         <div class="recommendation-box {box_class}">
-            <div class="metric-title">{title}</div>
+            <div class="metric-title">{"Top Recommendation" if profit >= desired_profit else "Best Available Option"}</div>
             <div class="metric-value">{coin}</div>
-            
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                <div>
-                    <div class="metric-title">Current Price</div>
-                    <div>${data['current_price']:,.2f}</div>
-                </div>
-                <div>
-                    <div class="metric-title">Predicted Price</div>
-                    <div>${data['future_price']:,.2f}</div>
-                    <div class="price-change {'profit-positive' if data['percent_change'] >= 0 else 'profit-negative'}">
-                        ({data['percent_change']:+.2f}%)
-                    </div>
-                </div>
-            </div>
-            
             <div style="margin-bottom: 10px;">
                 <span class="metric-title">Predicted Profit: </span>
-                <span class="{'profit-positive' if is_positive else 'profit-negative'}">
-                    ${data['profit']:,.2f}
-                </span>
+                <span class="{'profit-positive' if profit >= desired_profit else 'profit-negative'}">${profit:,.2f}</span>
             </div>
-            
             <div style="margin-bottom: 10px;">
                 <span class="metric-title">Target Profit: </span>
                 <span>${desired_profit:,.2f}</span>
             </div>
-            
             <div style="margin-bottom: 10px;">
                 <span class="metric-title">Time Period: </span>
                 <span>{num_days} days</span>
             </div>
-            
             <div>
                 <span class="metric-title">Target Achievement: </span>
-                <span>{((data['profit'] / desired_profit) * 100) if desired_profit != 0 else 0:.1f}%</span>
+                <span>{((profit / desired_profit) * 100) if desired_profit != 0 else 0:.1f}%</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Second recommendation
+    if len(recommended_coins) >= 2:
+        coin, profit = recommended_coins[1]
+        box_class = "success-box" if profit >= desired_profit else "warning-box"
+        label = "Alternative Option"
+        
+        if profit >= desired_profit:
+            if profit > recommended_coins[0][1]:
+                label = "Higher Profit Option"
+            elif abs(profit - desired_profit) < abs(recommended_coins[0][1] - desired_profit):
+                label = "More Precise Option"
+        
+        st.markdown(f"""
+        <div class="recommendation-box {box_class}">
+            <div class="metric-title">{label}</div>
+            <div class="metric-value">{coin}</div>
+            <div style="margin-bottom: 10px;">
+                <span class="metric-title">Predicted Profit: </span>
+                <span class="{'profit-positive' if profit >= desired_profit else 'profit-negative'}">${profit:,.2f}</span>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <span class="metric-title">Target Profit: </span>
+                <span>${desired_profit:,.2f}</span>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <span class="metric-title">Time Period: </span>
+                <span>{num_days} days</span>
+            </div>
+            <div>
+                <span class="metric-title">Target Achievement: </span>
+                <span>{((profit / desired_profit) * 100) if desired_profit != 0 else 0:.1f}%</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
