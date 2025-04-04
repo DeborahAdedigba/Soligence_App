@@ -1299,7 +1299,7 @@ def plot_actual_forecast_with_confidence(actual, predictions, periods, upper_bou
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         template="plotly_white",
-        margin=dict(l=20, r=20, t=60, b=20)
+        margin=dict(l=20, r=20, t=60, b=20))
     
     # Add shaded area for confidence interval
     fig.update_layout(
