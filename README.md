@@ -1,13 +1,11 @@
-Here's the improved `README.md` file with corrected file paths and better organization:
-
-```markdown
 # SOLiGence Intelligent Coin Trading (IST) Platform
 
-![SOLiGence Banner](https://via.placeholder.com/1200x400?text=SOLiGence+Platform) <!-- Replace with actual banner image -->
+![SOLiGence Banner]![image](https://github.com/user-attachments/assets/a04f5c7e-2a10-479a-9b6c-3481aeddc636)
+
 
 
 ## Website
-The application is deployed and accessible at: [Soligence App · Streamlit]([https://melanoma-detection-ai.streamlit.app/](https://soligenceappy.streamlit.app/))
+The application is deployed and accessible at: [Soligence App · Streamlit]([https://melanoma-detection-ai.streamlit.app/](https://soligenceapp.streamlit.app/))
 
 ## Introduction
 
