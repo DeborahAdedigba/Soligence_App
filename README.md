@@ -120,7 +120,5 @@ This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE
 ## 📧 Contact
 
 **Deborah Adedigba**  
-Email: debbydawn16@gmail.com  
-GitHub: [@DeborahAdedigba](https://github.com/DeborahAdedigba)  
+LinkedIn: [LinkedIn](https://www.linkedin.com/in/deborah-adedigba-bb917314b/)
 
-Project Link: [https://github.com/DeborahAdedigba/Soligence_App](https://github.com/DeborahAdedigba/Soligence_App)
