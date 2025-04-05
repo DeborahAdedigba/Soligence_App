@@ -1,6 +1,6 @@
 # SOLiGence Intelligent Coin Trading (IST) Platform
 
-![SOLiGence Banner]![image](https://github.com/user-attachments/assets/a04f5c7e-2a10-479a-9b6c-3481aeddc636)
+![image](https://github.com/user-attachments/assets/a04f5c7e-2a10-479a-9b6c-3481aeddc636)
 
 
 
