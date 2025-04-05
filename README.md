@@ -5,7 +5,7 @@
 
 
 ## Website
-The application is deployed and accessible at: [Soligence App · Streamlit]([https://melanoma-detection-ai.streamlit.app/](https://soligenceapp.streamlit.app/))
+The application is deployed and accessible at: [Soligence App · Streamlit]([https://soligenceapp.streamlit.app/])
 
 ## Introduction
 
