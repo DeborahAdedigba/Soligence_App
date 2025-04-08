@@ -298,6 +298,7 @@ def train_models_for_coin(selected_data, coin_index):
         logging.info(f"Training Gradient Boosting for {coin_name}")
         update_training_progress(
             coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
             current_model='Gradient Boosting',
             message='Training Gradient Boosting...',
             progress=0
@@ -308,6 +309,7 @@ def train_models_for_coin(selected_data, coin_index):
         
         update_training_progress(
             coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
             message='Gradient Boosting completed',
             progress=25
         )
@@ -316,6 +318,7 @@ def train_models_for_coin(selected_data, coin_index):
         logging.info(f"Training SVR for {coin_name}")
         update_training_progress(
             coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
             current_model='SVR',
             message='Training SVR...',
             progress=25
@@ -325,6 +328,7 @@ def train_models_for_coin(selected_data, coin_index):
         
         update_training_progress(
             coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
             message='SVR completed',
             progress=50
         )
@@ -333,6 +337,7 @@ def train_models_for_coin(selected_data, coin_index):
         logging.info(f"Training XGBoost for {coin_name}")
         update_training_progress(
             coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
             current_model='XGBoost',
             message='Training XGBoost...',
             progress=50
@@ -342,6 +347,7 @@ def train_models_for_coin(selected_data, coin_index):
         
         update_training_progress(
             coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
             message='XGBoost completed',
             progress=75
         )
@@ -350,6 +356,7 @@ def train_models_for_coin(selected_data, coin_index):
         logging.info(f"Training LSTM for {coin_name} (this may take a while)")
         update_training_progress(
             coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
             current_model='LSTM',
             message='Training LSTM (this may take a few minutes)...',
             progress=75
@@ -387,7 +394,7 @@ def train_models_for_coin(selected_data, coin_index):
         logging.error(error_msg, exc_info=True)
         update_training_progress(
             coin_name=coin_name,
-            status=f'Failed: {str(e)}',
+            status='Failed',  # Ensure status is provided here
             message=error_msg
         )
         raise e
