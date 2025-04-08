@@ -521,42 +521,6 @@ def display_training_progress():
 
 
 # Fetch cryptocurrency data
-# def get_crypto_data(ticker, start_date, end_date):
-#     try:
-#         crypto = yf.Ticker(ticker)
-#         data = crypto.history(start=start_date, end=end_date)
-#         return data
-#     except Exception as e:
-#         st.error(f"Error fetching data for {ticker}: {e}")
-#         return None
-
-# # Define ticker symbols and date range
-# ticker_symbols = ['BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 'XRP-GBP', 
-#                  'USDC-GBP', 'ADA-GBP', 'DOGE-GBP', 'XMR-GBP', 'TRX-GBP', 'DOT-GBP', 
-#                  'LINK-GBP', 'MATIC-GBP', 'DAI-GBP', 'HBAR-GBP', 'ICP-GBP', 'LTC-GBP', 
-#                  'BCH-GBP', 'ATOM-GBP', 'ETC-GBP', 'XLM-GBP', 'MKR-GBP', 'TUSD-GBP', 
-#                  'HEX-GBP', 'XCH-GBP', 'FTM-GBP', 'AXS-GBP', 'NEO-GBP', 'SAND-GBP']
-
-# end_date = datetime.now()
-# start_date = end_date - timedelta(days=4*365)  
-
-# # Try to load existing data or fetch fresh data
-# data_file = "Cleaned_combined_crypto_data.csv"
-# if os.path.exists(data_file):
-#     combined_data = pd.read_csv(data_file, index_col='Date')
-# else:
-#     combined_data = pd.DataFrame()
-#     for ticker in ticker_symbols:
-#         data = get_crypto_data(ticker, start_date, end_date)
-#         if data is not None:
-#             data['Crypto'] = ticker
-#             combined_data = pd.concat([combined_data, data], axis=0)
-    
-#     if not combined_data.empty:
-#         combined_data.drop(['Dividends', 'Stock Splits'], axis=1, inplace=True)
-#         combined_data.to_csv(data_file)
-
-
 # Fetch cryptocurrency data
 def get_crypto_data(ticker_symbols, force_refresh=False):
     """
@@ -633,6 +597,8 @@ CRYPTO_TICKERS = [
 
 # Example usage:
 # df = get_crypto_data(CRYPTO_TICKERS, force_refresh=False)
+
+
 
 
 # Generate selected coins through PCA and clustering
@@ -1064,29 +1030,12 @@ def about_us():
         </div>
         """, unsafe_allow_html=True)
 
-
-
 def dataset_section():
     """Display and interact with cryptocurrency dataset with improved UI/UX."""
     
     # Header section with more context
     st.header("📊 Cryptocurrency Market Dataset")
     st.markdown("Explore historical data for 30 major cryptocurrencies.")
-    
-    # Add data refresh controls at the top
-    with st.expander("Data Refresh Options", expanded=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            force_refresh = st.checkbox("Force refresh data", False,
-                                     help="Fetch fresh data from Yahoo Finance")
-        with col2:
-            if st.button("Clear Cache and Refresh"):
-                if os.path.exists("Cleaned_combined_crypto_data.csv"):
-                    os.remove("Cleaned_combined_crypto_data.csv")
-                st.rerun()
-    
-    # Fetch the data
-    combined_data = get_crypto_data(force_refresh=force_refresh)
     
     if combined_data.empty:
         st.error("⚠️ No data available. Please check your data source or connection.")
