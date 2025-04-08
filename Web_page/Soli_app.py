@@ -417,74 +417,50 @@ def train_lstm(X_train, y_train):
 # Modify the train_all_models_background function
 def train_all_models_background(selected_data):
     """Train models for all coins in a background thread with proper progress tracking"""
-    def initialize_session_state():
-        """Initialize all required session state variables"""
-        if 'training_started' not in st.session_state:
-            st.session_state.training_started = False
-        if 'models_trained' not in st.session_state:
-            st.session_state.models_trained = False
-        if 'training_progress' not in st.session_state:
-            st.session_state.training_progress = {}  
-        if 'overall_progress' not in st.session_state:
-            st.session_state.overall_progress = 0    
-        if 'total_models' not in st.session_state:
-            st.session_state.total_models = min(4, selected_data.shape[1]) * 4  
-        if 'last_update' not in st.session_state:
-            st.session_state.last_update = time.time()
-        if 'training_error' not in st.session_state:
-            st.session_state.training_error = None
-
-    # Initialize session state
-    initialize_session_state()
-    
-    # Reset state for new training
-    with threading.Lock():
-        st.session_state.training_started = True
-        st.session_state.models_trained = False
-        st.session_state.training_progress = {}  
-        st.session_state.overall_progress = 0    
-        st.session_state.training_error = None
-        st.session_state.last_update = time.time()
-    
-    logging.info("Starting model training in background")
-    
-    def training_task():
-        try:
-            logging.info(f"Training models for {min(4, selected_data.shape[1])} coins")
+    try:
+        # Initialize progress tracking
+        with threading.Lock():
+            st.session_state.training_state['progress'] = {}
+            st.session_state.training_state['overall'] = 0
+            st.session_state.training_state['error'] = None
+        
+        # Train models for each coin
+        for coin_idx in range(min(4, selected_data.shape[1])):
+            coin_name = selected_data.columns[coin_idx]
             
-            # Train models for each coin
-            for coin_idx in range(min(4, selected_data.shape[1])):
-                train_models_for_coin(selected_data, coin_idx)
-                
-                # Update overall progress
-                with threading.Lock():
-                    st.session_state.overall_progress += 4  
-                    st.session_state.last_update = time.time()
-            
-            # Mark training as complete
+            # Initialize coin progress
             with threading.Lock():
-                st.session_state.models_trained = True
-                st.session_state.training_started = False
-                st.session_state.last_update = time.time()
-                
-            logging.info("All models trained successfully")
+                st.session_state.training_state['progress'][coin_name] = {
+                    'status': 'Starting',
+                    'current_model': '',
+                    'message': 'Initializing',
+                    'progress': 0
+                }
             
-        except Exception as e:
-            error_msg = f"Training failed: {str(e)}"
-            logging.error(error_msg, exc_info=True)
+            # Train models for this coin
+            train_models_for_coin(selected_data, coin_idx)
+            
+            # Update progress after each coin
             with threading.Lock():
-                st.session_state.training_error = error_msg
-                st.session_state.training_started = False
-            return
-
-    # Start the background thread
-    st.session_state.training_thread = threading.Thread(
-        target=training_task,
-        daemon=True
-    )
-    st.session_state.training_thread.start()
+                st.session_state.training_state['overall'] += 4
+                st.session_state.training_state['progress'][coin_name] = {
+                    'status': 'Completed',
+                    'current_model': '',
+                    'message': 'All models trained',
+                    'progress': 100
+                }
+        
+        # Mark as completed
+        with threading.Lock():
+            st.session_state.training_state['completed'] = True
+            st.session_state.training_state['started'] = False
     
-    logging.info("Background training thread started")
+    except Exception as e:
+        error_msg = f"Training error: {str(e)}"
+        logging.error(error_msg, exc_info=True)
+        with threading.Lock():
+            st.session_state.training_state['error'] = error_msg
+            st.session_state.training_state['started'] = False
 
 def check_training_status():
     """Check and display training progress"""
@@ -2925,50 +2901,91 @@ def main():
         elif prediction_option == "Training":
             st.header("Model Training")
             
-            # Initialize session state variables if they don't exist
-            if 'training_started' not in st.session_state:
-                st.session_state.training_started = False
-            if 'models_trained' not in st.session_state:
-                st.session_state.models_trained = False
-            if 'training_progress' not in st.session_state:
-                st.session_state.training_progress = 0
-            if 'total_models' not in st.session_state:
-                st.session_state.total_models = 4  
-
+            # Initialize session state with proper structure
+            def initialize_training_state():
+                if 'training_state' not in st.session_state:
+                    st.session_state.training_state = {
+                        'started': False,
+                        'completed': False,
+                        'progress': {},
+                        'overall': 0,
+                        'total_models': min(4, selected_data.shape[1]) * 4 if 'selected_data' in locals() else 4,
+                        'error': None,
+                        'last_update': time.time()
+                    }
+            
+            initialize_training_state()
+            
             # Check if training is complete
-            if st.session_state.models_trained:
-                st.success("All models trained successfully!")
-                if st.button("Reset Training Status"):
-                    st.session_state.training_started = False
-                    st.session_state.models_trained = False
-                    st.session_state.training_progress = 0
+            if st.session_state.training_state['completed']:
+                st.success("✅ All models trained successfully!")
+                if st.button("Reset Training"):
+                    st.session_state.training_state = {
+                        'started': False,
+                        'completed': False,
+                        'progress': {},
+                        'overall': 0,
+                        'total_models': min(4, selected_data.shape[1]) * 4,
+                        'error': None,
+                        'last_update': time.time()
+                    }
+                    st.rerun()
+            
+            # Check for errors
+            elif st.session_state.training_state['error']:
+                st.error(f"❌ Training failed: {st.session_state.training_state['error']}")
+                if st.button("Retry Training"):
+                    st.session_state.training_state['error'] = None
+                    st.session_state.training_state['started'] = False
                     st.rerun()
             
             # Check if training is in progress
-            elif st.session_state.training_started:
-                # Show progress bar
-                progress = st.session_state.training_progress / st.session_state.total_models
-                st.progress(progress)
+            elif st.session_state.training_state['started']:
+                st.warning("🔄 Training in progress...")
                 
-                if st.session_state.training_progress >= st.session_state.total_models:
-                    st.session_state.models_trained = True
-                    st.session_state.training_started = False
+                # Display overall progress
+                progress_value = st.session_state.training_state['overall'] / st.session_state.training_state['total_models']
+                st.progress(progress_value)
+                st.write(f"Overall progress: {st.session_state.training_state['overall']}/{st.session_state.training_state['total_models']} models completed")
+                
+                # Display per-coin progress
+                for coin_name, progress in st.session_state.training_state['progress'].items():
+                    with st.expander(f"Progress for {coin_name}"):
+                        col1, col2 = st.columns([1, 4])
+                        with col1:
+                            status_icon = "✅" if progress['status'] == 'Completed' else "❌" if progress['status'].startswith('Failed') else "🔄"
+                            st.write(status_icon)
+                        
+                        with col2:
+                            st.write(f"**Status:** {progress['status']}")
+                            if progress['current_model']:
+                                st.write(f"**Current Model:** {progress['current_model']}")
+                            if progress['message']:
+                                st.write(progress['message'])
+                            if progress['status'] not in ['Completed', 'Failed']:
+                                st.progress(progress['progress'] / 100)
+                
+                # Auto-refresh logic
+                if not st.session_state.training_state['completed']:
+                    time.sleep(2)  # Refresh every 2 seconds
                     st.rerun()
-                else:
-                    st.warning(f"Training in progress... ({st.session_state.training_progress}/{st.session_state.total_models} models completed)")
-                    if st.button("Refresh Status"):
-                        st.rerun()
             
-            # Initial state - no training started yet
+            # Initial state - ready to start training
             else:
-                if st.button("Train All Models"):
-                    st.session_state.training_started = True
-                    st.session_state.training_progress = 0
+                if st.button("🚀 Train All Models"):
+                    st.session_state.training_state['started'] = True
+                    st.session_state.training_state['completed'] = False
+                    st.session_state.training_state['overall'] = 0
+                    st.session_state.training_state['error'] = None
+                    
+                    # Start background thread
                     thread = threading.Thread(
                         target=train_all_models_background,
-                        args=(selected_data,)
+                        args=(selected_data,),
+                        daemon=True
                     )
                     thread.start()
+                    
                     st.rerun()
         
         elif prediction_option == "Training Model Metrics":
