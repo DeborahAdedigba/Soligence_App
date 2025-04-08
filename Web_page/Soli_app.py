@@ -43,6 +43,7 @@ from logging.handlers import RotatingFileHandler
 
 
 
+
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # Configuration for training
@@ -51,38 +52,10 @@ os.makedirs("trained_models", exist_ok=True)
 memory = Memory("cached_models", verbose=0)
 
 
-def initialize_session_state():
-    """Initialize all required session state variables"""
-    required_vars = {
-        'models_trained': False,
-        'model_paths': {},
-        'training_progress': {},
-        'training_thread': None,
-        'training_started': False,
-        'last_update': time.time()
-    }
-    
-    for var, default in required_vars.items():
-        if var not in st.session_state:
-            st.session_state[var] = default
 
-# Initialize session state
-def initialize_session_state():
-    """Initialize all required session state variables"""
-    if 'models_trained' not in st.session_state:
-        st.session_state.models_trained = False
-    if 'model_paths' not in st.session_state:
-        st.session_state.model_paths = {}
-    if 'training_progress' not in st.session_state:
-        st.session_state.training_progress = {}  
-    if 'overall_progress' not in st.session_state:
-        st.session_state.overall_progress = 0  
-    if 'training_thread' not in st.session_state:
-        st.session_state.training_thread = None
-    if 'training_started' not in st.session_state:
-        st.session_state.training_started = False
-    if 'last_update' not in st.session_state:
-        st.session_state.last_update = time.time()
+
+
+
 
 # Version checking
 def check_versions():
@@ -101,7 +74,45 @@ def check_versions():
         except Exception as e:
             logging.error(f"Version check failed for {pkg}: {str(e)}")
 
-# Training functions
+
+
+
+# Configuration for training
+os.makedirs("cached_models", exist_ok=True)
+os.makedirs("trained_models", exist_ok=True)
+
+def initialize_session_state():
+    """Initialize all required session state variables for training"""
+    required_vars = {
+        'training_state': {
+            'started': False,
+            'completed': False,
+            'progress': {},
+            'overall': 0,
+            'total_models': 0,
+            'error': None,
+            'last_update': time.time()
+        },
+        'training_thread': None,
+        'models_trained': False,
+        'model_paths': {}
+    }
+    
+    for var, default in required_vars.items():
+        if var not in st.session_state:
+            st.session_state[var] = default
+
+def setup_logging():
+    """Configure logging system for training"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            RotatingFileHandler('training.log', maxBytes=1e6, backupCount=3),
+            logging.StreamHandler()
+        ]
+    )
+    logging.info("Logging system initialized")
 
 def prepare_data(selected_data, coin_index=0, for_lstm=False):
     """Prepare data with lag features"""
@@ -117,7 +128,6 @@ def prepare_data(selected_data, coin_index=0, for_lstm=False):
     X = selected_data[features]
     y = selected_data[coin_name]
     
-    # Convert to numpy arrays only if requested (for LSTM)
     if for_lstm:
         X = X.values.astype(np.float32)
         y = y.values.astype(np.float32)
@@ -125,7 +135,7 @@ def prepare_data(selected_data, coin_index=0, for_lstm=False):
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
 def train_gradient_boosting(X_train, y_train):
-    """Train Gradient Boosting model with simplified parameters for faster training"""
+    """Train Gradient Boosting model"""
     params = {
         'n_estimators': 100,
         'learning_rate': 0.1,
@@ -139,7 +149,7 @@ def train_gradient_boosting(X_train, y_train):
     return gb
 
 def train_svr(X_train, y_train):
-    """Train SVR model with simplified parameters"""
+    """Train SVR model"""
     params = {
         'C': 1.0,
         'kernel': 'rbf',
@@ -150,7 +160,7 @@ def train_svr(X_train, y_train):
     return svr
 
 def train_xgboost(X_train, y_train):
-    """Train XGBoost model with simplified parameters"""
+    """Train XGBoost model"""
     params = {
         'n_estimators': 100,
         'learning_rate': 0.1,
@@ -163,231 +173,35 @@ def train_xgboost(X_train, y_train):
     xgb.fit(X_train, y_train)
     return xgb
 
-
-# Then modify your save_model function to this robust version:
-def save_model(model, model_name, coin_index=1, input_shape=None):
-    """Save trained model to file with version info"""
-    try:
-        model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index}"
-        os.makedirs(model_dir, exist_ok=True)
-        
-        # Write requirements file with fallback version handling
-        requirements_file = os.path.join(model_dir, "requirements.txt")
-        with open(requirements_file, "w") as f:
-            # Get versions with fallbacks
-            sklearn_ver = getattr(sklearn, '__version__', 'unknown')
-            xgboost_ver = getattr(xgboost, '__version__', 'unknown')
-            tf_ver = getattr(tf, '__version__', 'unknown')
-            joblib_ver = getattr(joblib, '__version__', 'unknown')
-            
-            f.write(f"scikit-learn=={sklearn_ver}\n")
-            f.write(f"xgboost=={xgboost_ver}\n") 
-            f.write(f"tensorflow=={tf_ver}\n")
-            f.write(f"joblib=={joblib_ver}\n")
-        
-        # Save the model based on type
-        if model_name == 'LSTM':
-            model_path = os.path.join(model_dir, "lstm_model.keras")
-            model.save(model_path)
-        else:
-            model_path = os.path.join(model_dir, f"{model_name.lower().replace(' ', '_')}_model.pkl")
-            joblib.dump(model, model_path, compress=3)
-        
-        # Save metadata
-        metadata = {
-            'training_date': pd.Timestamp.now().isoformat(),
-            'input_shape': input_shape,
-            'model_type': model_name,
-            'versions': {
-                'scikit-learn': sklearn_ver,
-                'xgboost': xgboost_ver,
-                'tensorflow': tf_ver,
-                'joblib': joblib_ver
-            }
-        }
-        metadata_path = os.path.join(model_dir, f"{model_name.lower().replace(' ', '_')}_metadata.pkl")
-        joblib.dump(metadata, metadata_path)
-        
-        return model_dir
-        
-    except Exception as e:
-        logging.error(f"Error saving model {model_name}: {str(e)}")
-        raise
-
-# Configure logging
-def setup_logging():
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            RotatingFileHandler('training.log', maxBytes=1e6, backupCount=3),
-            logging.StreamHandler()
-        ]
-    )
-    logging.info("Logging system initialized")
-
-setup_logging()
-
-# Modify the train_models_for_coin function to add logging
-def train_models_for_coin(selected_data, coin_index):
-    """Train all models for a specific coin with progress tracking"""
-    # Initialize session state for this thread
-    initialize_session_state()
-    
-    coin_name = selected_data.columns[coin_index]
-    logging.info(f"Starting training for {coin_name}")
-    
-    try:
-        # Thread-safe session state updates
-        with threading.Lock():
-            # Ensure training_progress is a dictionary
-            if not isinstance(st.session_state.training_progress, dict):
-                st.session_state.training_progress = {}
-                
-            st.session_state.training_progress[coin_name] = {
-                'status': 'In Progress',
-                'current_model': None,
-                'progress': 0,
-                'message': ''
-            }
-            st.session_state.last_update = time.time()
-
-        models = {}
-        
-        # ===== GRADIENT BOOSTING =====
-        logging.info(f"Training Gradient Boosting for {coin_name}")
-        with threading.Lock():
-            st.session_state.training_progress[coin_name]['current_model'] = 'Gradient Boosting'
-            st.session_state.training_progress[coin_name]['message'] = 'Training Gradient Boosting...'
-            st.session_state.last_update = time.time()
-        
-        # Prepare data (DataFrame format)
-        X_train, X_test, y_train, y_test = prepare_data(selected_data, coin_index, for_lstm=False)
-        models['Gradient Boosting'] = train_gradient_boosting(X_train, y_train)
-        
-        with threading.Lock():
-            st.session_state.training_progress[coin_name]['progress'] = 25
-            st.session_state.training_progress[coin_name]['message'] = 'Gradient Boosting completed'
-            st.session_state.last_update = time.time()
-        
-        # ===== SVR =====
-        logging.info(f"Training SVR for {coin_name}")
-        with threading.Lock():
-            st.session_state.training_progress[coin_name]['current_model'] = 'SVR'
-            st.session_state.training_progress[coin_name]['message'] = 'Training SVR...'
-            st.session_state.last_update = time.time()
-        
-        # Reuse same DataFrame data
-        models['SVR'] = train_svr(X_train, y_train)
-        
-        with threading.Lock():
-            st.session_state.training_progress[coin_name]['progress'] = 50
-            st.session_state.training_progress[coin_name]['message'] = 'SVR completed'
-            st.session_state.last_update = time.time()
-        
-        # ===== XGBOOST =====
-        logging.info(f"Training XGBoost for {coin_name}")
-        with threading.Lock():
-            st.session_state.training_progress[coin_name]['current_model'] = 'XGBoost'
-            st.session_state.training_progress[coin_name]['message'] = 'Training XGBoost...'
-            st.session_state.last_update = time.time()
-        
-        # Reuse same DataFrame data
-        models['XGBoost'] = train_xgboost(X_train, y_train)
-        
-        with threading.Lock():
-            st.session_state.training_progress[coin_name]['progress'] = 75
-            st.session_state.training_progress[coin_name]['message'] = 'XGBoost completed'
-            st.session_state.last_update = time.time()
-        
-        # ===== LSTM =====
-        logging.info(f"Training LSTM for {coin_name} (this may take a while)")
-        with threading.Lock():
-            st.session_state.training_progress[coin_name]['current_model'] = 'LSTM'
-            st.session_state.training_progress[coin_name]['message'] = 'Training LSTM (this may take a few minutes)...'
-            st.session_state.last_update = time.time()
-        
-        # Prepare fresh data in NumPy format
-        X_train_lstm, _, y_train_lstm, _ = prepare_data(selected_data, coin_index, for_lstm=True)
-        models['LSTM'] = train_lstm(X_train_lstm, y_train_lstm)
-        
-        with threading.Lock():
-            st.session_state.training_progress[coin_name]['progress'] = 100
-            st.session_state.training_progress[coin_name]['message'] = 'LSTM completed'
-            st.session_state.last_update = time.time()
-        
-        # Save models
-        logging.info(f"Saving models for {coin_name}")
-        saved_paths = {}
-        for name, model in models.items():
-            model_dir = save_model(model, name, coin_index + 1, X_train.shape[1])
-            saved_paths[name] = model_dir
-        
-        with threading.Lock():
-            if not hasattr(st.session_state, 'model_paths'):
-                st.session_state.model_paths = {}
-            st.session_state.model_paths.update(saved_paths)
-            st.session_state.last_update = time.time()
-        
-        logging.info(f"Successfully completed training for {coin_name}")
-        return models
-        
-    except Exception as e:
-        error_msg = f"Error training {coin_name}: {str(e)}"
-        logging.error(error_msg, exc_info=True)
-        with threading.Lock():
-            if coin_name in st.session_state.training_progress:
-                st.session_state.training_progress[coin_name]['status'] = f'Failed: {str(e)}'
-                st.session_state.training_progress[coin_name]['message'] = error_msg
-            st.session_state.last_update = time.time()
-        raise e
-
-
 def train_lstm(X_train, y_train):
     """Train LSTM model (requires numpy arrays)"""
-    logging.info("Initializing LSTM model training")
-    
     try:
-        # Clear any existing session
         tf.keras.backend.clear_session()
-        logging.info("Cleared previous Keras session")
-
-        # Define early stopping callback
+        
         early_stop = EarlyStopping(
             monitor='val_loss',
             patience=5,
             restore_best_weights=True,
             verbose=1
         )
-        logging.info("Configured early stopping callback")
 
-        # Build model
-        model = tf.keras.Sequential([
-            tf.keras.layers.LSTM(32, input_shape=(X_train.shape[1], 1)),
-            tf.keras.layers.Dense(16, activation='relu'),
-            tf.keras.layers.Dense(1)
+        model = Sequential([
+            LSTM(32, input_shape=(X_train.shape[1], 1)),
+            Dense(16, activation='relu'),
+            Dense(1)
         ])
-        logging.info("Created LSTM model architecture")
 
-        # Compile model
         model.compile(
             optimizer='adam',
             loss='mse',
             metrics=['mae']
         )
-        logging.info("Compiled LSTM model")
 
-        # Prepare data
-        logging.info("Preparing training data")
         X_train_reshaped = np.array(X_train, dtype=np.float32).reshape(
             X_train.shape[0], X_train.shape[1], 1
         )
         y_train_array = np.array(y_train, dtype=np.float32)
-        logging.info(f"Training data shape: {X_train_reshaped.shape}")
-        logging.info(f"Target data shape: {y_train_array.shape}")
 
-        # Train model
-        logging.info("Starting LSTM training")
         history = model.fit(
             X_train_reshaped, 
             y_train_array,
@@ -398,137 +212,299 @@ def train_lstm(X_train, y_train):
             verbose=1
         )
         
-        # Log training results
-        final_epoch = len(history.history['loss'])
-        final_loss = history.history['loss'][-1]
-        final_val_loss = history.history.get('val_loss', [None])[-1]
-        
-        logging.info(f"Completed LSTM training after {final_epoch} epochs")
-        logging.info(f"Final training loss: {final_loss:.4f}")
-        if final_val_loss is not None:
-            logging.info(f"Final validation loss: {final_val_loss:.4f}")
-        
         return model
 
     except Exception as e:
         logging.error(f"Error during LSTM training: {str(e)}", exc_info=True)
         return None
 
-# Modify the train_all_models_background function
+def save_model(model, model_name, coin_index=1, input_shape=None):
+    """Save trained model to file with version info"""
+    try:
+        model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index}"
+        os.makedirs(model_dir, exist_ok=True)
+        
+        # Save the model based on type
+        if model_name == 'LSTM':
+            model_path = os.path.join(model_dir, "lstm_model.keras")
+            model.save(model_path)
+        else:
+            model_path = os.path.join(model_dir, f"{model_name.lower().replace(' ', '_')}_model.pkl")
+            joblib.dump(model, model_path, compress=3)
+        
+        return model_dir
+        
+    except Exception as e:
+        logging.error(f"Error saving model {model_name}: {str(e)}")
+        raise
+
+def update_training_progress(coin_name, status, current_model=None, message=None, progress=None):
+    """Thread-safe update of training progress"""
+    with threading.Lock():
+        if 'training_state' not in st.session_state:
+            st.session_state.training_state = {}
+        if 'progress' not in st.session_state.training_state:
+            st.session_state.training_state['progress'] = {}
+            
+        if coin_name not in st.session_state.training_state['progress']:
+            st.session_state.training_state['progress'][coin_name] = {}
+        
+        if status:
+            st.session_state.training_state['progress'][coin_name]['status'] = status
+        if current_model:
+            st.session_state.training_state['progress'][coin_name]['current_model'] = current_model
+        if message:
+            st.session_state.training_state['progress'][coin_name]['message'] = message
+        if progress is not None:
+            st.session_state.training_state['progress'][coin_name]['progress'] = progress
+        
+        st.session_state.training_state['last_update'] = time.time()
+
+def train_models_for_coin(selected_data, coin_index):
+    """Train all models for a specific coin with progress tracking"""
+    initialize_session_state()
+    coin_name = selected_data.columns[coin_index]
+    logging.info(f"Starting training for {coin_name}")
+    
+    try:
+        # Initialize progress tracking for this coin
+        update_training_progress(
+            coin_name=coin_name,
+            status='In Progress',
+            current_model=None,
+            message='Initializing training',
+            progress=0
+        )
+        
+        models = {}
+        
+        # ===== GRADIENT BOOSTING =====
+        logging.info(f"Training Gradient Boosting for {coin_name}")
+        update_training_progress(
+            coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
+            current_model='Gradient Boosting',
+            message='Training Gradient Boosting...',
+            progress=0
+        )
+        
+        X_train, X_test, y_train, y_test = prepare_data(selected_data, coin_index, for_lstm=False)
+        models['Gradient Boosting'] = train_gradient_boosting(X_train, y_train)
+        
+        update_training_progress(
+            coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
+            message='Gradient Boosting completed',
+            progress=25
+        )
+        
+        # ===== SVR =====
+        logging.info(f"Training SVR for {coin_name}")
+        update_training_progress(
+            coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
+            current_model='SVR',
+            message='Training SVR...',
+            progress=25
+        )
+        
+        models['SVR'] = train_svr(X_train, y_train)
+        
+        update_training_progress(
+            coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
+            message='SVR completed',
+            progress=50
+        )
+        
+        # ===== XGBOOST =====
+        logging.info(f"Training XGBoost for {coin_name}")
+        update_training_progress(
+            coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
+            current_model='XGBoost',
+            message='Training XGBoost...',
+            progress=50
+        )
+        
+        models['XGBoost'] = train_xgboost(X_train, y_train)
+        
+        update_training_progress(
+            coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
+            message='XGBoost completed',
+            progress=75
+        )
+        
+        # ===== LSTM =====
+        logging.info(f"Training LSTM for {coin_name} (this may take a while)")
+        update_training_progress(
+            coin_name=coin_name,
+            status='In Progress',  # Added missing status parameter
+            current_model='LSTM',
+            message='Training LSTM (this may take a few minutes)...',
+            progress=75
+        )
+        
+        X_train_lstm, _, y_train_lstm, _ = prepare_data(selected_data, coin_index, for_lstm=True)
+        models['LSTM'] = train_lstm(X_train_lstm, y_train_lstm)
+        
+        update_training_progress(
+            coin_name=coin_name,
+            status='Completed',
+            message='LSTM completed',
+            progress=100
+        )
+        
+        # Save models
+        logging.info(f"Saving models for {coin_name}")
+        saved_paths = {}
+        for name, model in models.items():
+            model_dir = save_model(model, name, coin_index + 1, X_train.shape[1])
+            saved_paths[name] = model_dir
+        
+        # Update session state with model paths
+        with threading.Lock():
+            if 'model_paths' not in st.session_state:
+                st.session_state.model_paths = {}
+            st.session_state.model_paths.update(saved_paths)
+            st.session_state.training_state['last_update'] = time.time()
+        
+        logging.info(f"Successfully completed training for {coin_name}")
+        return models
+        
+    except Exception as e:
+        error_msg = f"Error training {coin_name}: {str(e)}"
+        logging.error(error_msg, exc_info=True)
+        update_training_progress(
+            coin_name=coin_name,
+            status='Failed',  # Ensure status is provided here
+            message=error_msg
+        )
+        raise e
+
 def train_all_models_background(selected_data):
     """Train models for all coins in a background thread with proper progress tracking"""
     try:
-        # Ensure session state is initialized
-        if 'training_state' not in st.session_state:
-            with threading.Lock():
-                st.session_state.training_state = {
-                    'started': True,
-                    'completed': False,
-                    'progress': {},
-                    'overall': 0,
-                    'total_models': min(4, selected_data.shape[1]) * 4,
-                    'error': None,
-                    'last_update': time.time()
-                }
+        initialize_session_state()
+        
+        with threading.Lock():
+            st.session_state.training_state = {
+                'started': True,
+                'completed': False,
+                'progress': {},
+                'overall': 0,
+                'total_models': min(4, selected_data.shape[1]) * 4,
+                'error': None,
+                'last_update': time.time()
+            }
         
         # Train models for each coin
         for coin_idx in range(min(4, selected_data.shape[1])):
             coin_name = selected_data.columns[coin_idx]
             
             # Initialize coin progress
-            with threading.Lock():
-                if 'training_state' not in st.session_state:
-                    st.session_state.training_state = {}
-                st.session_state.training_state['progress'] = st.session_state.training_state.get('progress', {})
-                st.session_state.training_state['progress'][coin_name] = {
-                    'status': 'Starting',
-                    'current_model': '',
-                    'message': 'Initializing',
-                    'progress': 0
-                }
+            update_training_progress(
+                coin_name=coin_name,
+                status='Starting',
+                current_model='',
+                message='Initializing',
+                progress=0
+            )
             
-            # Train models for this coin (your existing training code)
+            # Train models for this coin
             train_models_for_coin(selected_data, coin_idx)
             
-            # Update progress after each coin
+            # Update overall progress
             with threading.Lock():
-                if 'training_state' in st.session_state:
-                    st.session_state.training_state['overall'] = st.session_state.training_state.get('overall', 0) + 4
-                    st.session_state.training_state['progress'][coin_name] = {
-                        'status': 'Completed',
-                        'current_model': '',
-                        'message': 'All models trained',
-                        'progress': 100
-                    }
-                    st.session_state.training_state['last_update'] = time.time()
+                st.session_state.training_state['overall'] += 4
+                st.session_state.training_state['progress'][coin_name] = {
+                    'status': 'Completed',
+                    'current_model': '',
+                    'message': 'All models trained',
+                    'progress': 100
+                }
+                st.session_state.training_state['last_update'] = time.time()
         
         # Mark as completed
         with threading.Lock():
-            if 'training_state' in st.session_state:
-                st.session_state.training_state['completed'] = True
-                st.session_state.training_state['started'] = False
+            st.session_state.training_state['completed'] = True
+            st.session_state.training_state['started'] = False
+            st.session_state.models_trained = True
     
     except Exception as e:
         error_msg = f"Training error: {str(e)}"
         logging.error(error_msg, exc_info=True)
         with threading.Lock():
-            if 'training_state' not in st.session_state:
-                st.session_state.training_state = {}
             st.session_state.training_state['error'] = error_msg
             st.session_state.training_state['started'] = False
 
-def check_training_status():
-    """Check and display training progress"""
-    if not isinstance(st.session_state.training_progress, dict):
-        st.session_state.training_progress = {}
+def display_training_progress():
+    """Display training progress in the UI"""
+    if 'training_state' not in st.session_state:
+        st.warning("Training not initialized")
+        return
     
-    st.subheader("Training Progress")
+    training_state = st.session_state.training_state
     
-    # Show overall progress
-    if hasattr(st.session_state, 'overall_progress') and hasattr(st.session_state, 'total_models'):
-        overall_progress = st.session_state.overall_progress
-        total_models = st.session_state.total_models
-        st.progress(overall_progress / total_models)
-        st.write(f"Overall progress: {overall_progress}/{total_models} models completed")
+    if training_state.get('completed', False):
+        st.success("✅ All models trained successfully!")
+        if st.button("Reset Training"):
+            initialize_session_state()
+            st.rerun()
+        return
     
-    # Show per-coin progress
-    all_completed = True
-    any_failed = False
+    if training_state.get('error'):
+        st.error(f"❌ Training failed: {training_state['error']}")
+        if st.button("Retry Training"):
+            initialize_session_state()
+            st.rerun()
+        return
     
-    for coin_name, progress in st.session_state.training_progress.items():
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            if progress['status'] == 'Completed':
-                st.success("✓")
-            elif progress['status'].startswith('Failed'):
-                st.error("✗")
-                any_failed = True
-            else:
-                st.info("⌛")
-                all_completed = False
+    if training_state.get('started', False):
+        st.warning("🔄 Training in progress...")
         
-        with col2:
-            st.write(f"**{coin_name}**")
-            if progress['current_model']:
-                st.write(f"Current: {progress['current_model']}")
-            if progress['message']:
-                st.write(progress['message'])
-            if progress['status'] not in ['Completed', 'Failed']:
-                st.progress(progress['progress'] / 100)
-    
-    if all_completed and not any_failed and overall_progress >= total_models:
-        st.session_state.models_trained = True
-        st.balloons()
-        return True
-    
-    # Auto-refresh every 5 seconds if training is still in progress
-    if not all_completed or overall_progress < total_models:
-        time.sleep(5)
-        st.rerun()
-    
-    return False
+        # Display overall progress
+        if 'overall' in training_state and 'total_models' in training_state:
+            progress_value = training_state['overall'] / training_state['total_models']
+            st.progress(min(1.0, max(0.0, progress_value)))
+            st.write(f"Overall progress: {training_state['overall']}/{training_state['total_models']} models completed")
+        
+        # Display per-coin progress
+        if 'progress' in training_state:
+            for coin_name, progress in training_state['progress'].items():
+                with st.expander(f"Progress for {coin_name}"):
+                    col1, col2 = st.columns([1, 4])
+                    with col1:
+                        status_icon = "✅" if progress.get('status') == 'Completed' else "❌" if progress.get('status', '').startswith('Failed') else "🔄"
+                        st.write(status_icon)
+                    
+                    with col2:
+                        st.write(f"**Status:** {progress.get('status', 'Unknown')}")
+                        if progress.get('current_model'):
+                            st.write(f"**Current Model:** {progress['current_model']}")
+                        if progress.get('message'):
+                            st.write(progress['message'])
+                        if progress.get('status') not in ['Completed', 'Failed']:
+                            st.progress(min(1.0, max(0.0, progress.get('progress', 0) / 100)))
+        
+        # Auto-refresh logic
+        if not training_state.get('completed', False):
+            time.sleep(2)  # Refresh every 2 seconds
+            st.rerun()
+    else:
+        if st.button("🚀 Train All Models"):
+            # Start background thread
+            thread = threading.Thread(
+                target=train_all_models_background,
+                args=(selected_data,),
+                daemon=True
+            )
+            thread.start()
+            st.rerun()
 
-# Fetch cryptocurrency data
+
+# Fetch cryptocurrency data for a single ticker
 def get_crypto_data(ticker, start_date, end_date):
     try:
         crypto = yf.Ticker(ticker)
@@ -538,31 +514,110 @@ def get_crypto_data(ticker, start_date, end_date):
         st.error(f"Error fetching data for {ticker}: {e}")
         return None
 
-# Define ticker symbols and date range
-ticker_symbols = ['BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 'XRP-GBP', 
-                 'USDC-GBP', 'ADA-GBP', 'DOGE-GBP', 'XMR-GBP', 'TRX-GBP', 'DOT-GBP', 
-                 'LINK-GBP', 'MATIC-GBP', 'DAI-GBP', 'HBAR-GBP', 'ICP-GBP', 'LTC-GBP', 
-                 'BCH-GBP', 'ATOM-GBP', 'ETC-GBP', 'XLM-GBP', 'MKR-GBP', 'TUSD-GBP', 
-                 'HEX-GBP', 'XCH-GBP', 'FTM-GBP', 'AXS-GBP', 'NEO-GBP', 'SAND-GBP']
+# Define ticker symbols - using the updated list
+CRYPTO_TICKERS = [
+    'BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 
+    'XRP-GBP', 'USDC-GBP', 'ADA-GBP', 'DOGE-GBP', 'DOT-GBP',
+    'MATIC-GBP', 'DAI-GBP', 'LTC-GBP', 'SHIB-GBP', 'TRX-GBP',
+    'AVAX-GBP', 'LINK-GBP', 'ATOM-GBP', 'XLM-GBP', 'UNI-GBP',
+    'BCH-GBP', 'ALGO-GBP', 'VET-GBP', 'FIL-GBP', 'THETA-GBP',
+    'XMR-GBP', 'ETC-GBP', 'EOS-GBP', 'AAVE-GBP', 'XTZ-GBP',
+    'SAND-GBP', 'MANA-GBP', 'APE-GBP', 'GALA-GBP', 'CHZ-GBP'
+]
 
-end_date = datetime.now()
-start_date = end_date - timedelta(days=4*365)  
-
-# Try to load existing data or fetch fresh data
-data_file = "Cleaned_combined_crypto_data.csv"
-if os.path.exists(data_file):
-    combined_data = pd.read_csv(data_file, index_col='Date')
-else:
-    combined_data = pd.DataFrame()
-    for ticker in ticker_symbols:
-        data = get_crypto_data(ticker, start_date, end_date)
-        if data is not None:
-            data['Crypto'] = ticker
-            combined_data = pd.concat([combined_data, data], axis=0)
+# Function to load data - but only display messages in the dataset section
+def load_crypto_data(show_messages=False):
+    global combined_data
     
-    if not combined_data.empty:
-        combined_data.drop(['Dividends', 'Stock Splits'], axis=1, inplace=True)
-        combined_data.to_csv(data_file)
+    # Set date range
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=4*365)  # 4 years of data
+    
+    # Define cache file path
+    data_file = "Cleaned_combined_crypto_data.csv"
+    
+    # Check if we should use cached data
+    use_cached = False
+    missing_tickers = []
+    
+    if os.path.exists(data_file):
+        # Check how old the file is
+        file_mtime = datetime.fromtimestamp(os.path.getmtime(data_file))
+        days_old = (datetime.now() - file_mtime).days
+        
+        # Load the cached data to check what tickers it contains
+        temp_data = pd.read_csv(data_file, parse_dates=['Date'], index_col='Date')
+        
+        # Get unique tickers in the dataset
+        if 'Crypto' in temp_data.columns:
+            cached_tickers = temp_data['Crypto'].unique().tolist()
+        else:
+            cached_tickers = []
+        
+        # Check if all required tickers are in the cache
+        missing_tickers = [t for t in CRYPTO_TICKERS if t not in cached_tickers]
+        
+        # Decide whether to use cache based on age and completeness
+        if days_old < 1 and not missing_tickers:
+            combined_data = temp_data
+            if show_messages:
+                st.success(f"Loaded complete cached data from {file_mtime.strftime('%Y-%m-%d')}")
+            use_cached = True
+        elif days_old >= 1:
+            if show_messages:
+                st.info(f"Cached data is {days_old} days old. Refreshing all data...")
+            combined_data = None
+        elif missing_tickers:
+            if show_messages:
+                st.info(f"Cached data is missing {len(missing_tickers)} cryptocurrencies. Refreshing all data...")
+            combined_data = None
+    else:
+        if show_messages:
+            st.info("No cached data found. Fetching fresh data...")
+        combined_data = None
+    
+    # If we need to fetch fresh data
+    if not use_cached:
+        # Setup progress tracking
+        if show_messages:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+        
+        # Initialize empty DataFrame
+        combined_data = pd.DataFrame()
+        
+        # Fetch data for each ticker
+        for i, ticker in enumerate(CRYPTO_TICKERS):
+            if show_messages:
+                status_text.text(f"Fetching {ticker}... ({i+1}/{len(CRYPTO_TICKERS)})")
+                progress_bar.progress((i+1)/len(CRYPTO_TICKERS))
+            
+            data = get_crypto_data(ticker, start_date, end_date)
+            if data is not None and not data.empty:
+                data['Crypto'] = ticker
+                combined_data = pd.concat([combined_data, data], axis=0)
+                if show_messages:
+                    latest_date = data.index[-1].strftime('%Y-%m-%d')
+                    st.write(f"✅ {ticker} (up to {latest_date})")
+            elif show_messages:
+                st.warning(f"No data for {ticker}")
+        
+        # Clean the data if we have any
+        if not combined_data.empty:
+            if 'Dividends' in combined_data.columns:
+                combined_data.drop(['Dividends', 'Stock Splits'], axis=1, inplace=True)
+            combined_data.to_csv(data_file)
+            if show_messages:
+                st.success(f"Saved new data with {len(combined_data):,} rows")
+        elif show_messages:
+            st.error("No data was fetched. Check your internet connection or ticker symbols.")
+    
+    return combined_data
+
+
+
+combined_data = load_crypto_data(show_messages=False)
+
 
 # Generate selected coins through PCA and clustering
 def generate_selected_data(data):
@@ -593,9 +648,26 @@ def generate_selected_data(data):
     selected_data = pivoted_data[representative_coins.index]
     return selected_data
 
+# This should be placed after combined_data is defined
 selected_data_file = 'Selected_coins.csv'
 if os.path.exists(selected_data_file):
-    selected_data = pd.read_csv(selected_data_file, index_col='Date')
+    # Check if selected_data_file is older than combined_data file
+    data_file = "Cleaned_combined_crypto_data.csv"
+    if os.path.exists(data_file):
+        selected_mtime = os.path.getmtime(selected_data_file)
+        combined_mtime = os.path.getmtime(data_file)
+        
+        if selected_mtime < combined_mtime:
+            # If selected data is older than combined data, regenerate it
+            if not combined_data.empty:
+                selected_data = generate_selected_data(combined_data)
+                selected_data.to_csv(selected_data_file)
+            else:
+                selected_data = pd.read_csv(selected_data_file, index_col='Date')
+        else:
+            selected_data = pd.read_csv(selected_data_file, index_col='Date')
+    else:
+        selected_data = pd.read_csv(selected_data_file, index_col='Date')
 else:
     if not combined_data.empty:
         selected_data = generate_selected_data(combined_data)
@@ -607,7 +679,6 @@ else:
 if not os.path.exists("trained_models") and not selected_data.empty:
     st.info("First-time setup: Training initial models...")
     train_all_models_background(selected_data)
-
 # UI Functions
 def home_section():
     """Enhanced home section with modern UI and improved content structure"""
@@ -993,12 +1064,30 @@ def about_us():
         </div>
         """, unsafe_allow_html=True)
 
+
 def dataset_section():
-    """Display and interact with cryptocurrency dataset with improved UI/UX."""
+    global combined_data
     
-    # Header section with more context
-    st.header("📊 Cryptocurrency Market Dataset")
+    st.title("Cryptocurrency Dataset")
     st.markdown("Explore historical data for 30 major cryptocurrencies.")
+    
+    # Add refresh button in dataset section
+    if st.button("Force Refresh Data"):
+        data_file = "Cleaned_combined_crypto_data.csv"
+        if os.path.exists(data_file):
+            os.remove(data_file)
+        # Also remove selected_data_file to regenerate it
+        selected_data_file = 'Selected_coins.csv'
+        if os.path.exists(selected_data_file):
+            os.remove(selected_data_file)
+        # Reload data with messages shown
+        combined_data = load_crypto_data(show_messages=True)
+    else:
+        # Just show the data info when not refreshing
+        data_file = "Cleaned_combined_crypto_data.csv"
+        if os.path.exists(data_file):
+            file_mtime = datetime.fromtimestamp(os.path.getmtime(data_file))
+            st.info(f"Using data cached from {file_mtime.strftime('%Y-%m-%d at %H:%M:%S')}")
     
     if combined_data.empty:
         st.error("⚠️ No data available. Please check your data source or connection.")
@@ -1730,7 +1819,7 @@ def plot_coin_scatter():
     st.plotly_chart(fig, use_container_width=True)
 
 
-def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
+def evaluate_models_selected_coin(data, coin_index):
     """
     Evaluate machine learning models for a specific cryptocurrency with single selection
     and enhanced visualizations.
@@ -1804,66 +1893,76 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
                     st.error(f"Model loading failed again: {str(e)}")
                     return
 
-        # Single model selection
+        # Multiple model selection
         available_models = list(models.keys())
-        selected_model = st.selectbox(
-            "Select model to evaluate:",
+        selected_models = st.multiselect(
+            "Select models to evaluate:",
             options=available_models,
-            index=0,
-            key=f"model_select_{coin_index}"
+            default=[available_models[0]] if available_models else [],  # Default to first model if available
+            key=f"multimodel_select_{coin_index}"
         )
+
+        # Ensure at least one model is selected
+        if not selected_models and available_models:
+            st.warning("Please select at least one model to evaluate.")
+            selected_models = [available_models[0]]  
 
         # Evaluation metrics storage
         eval_metrics = {}
         predictions_data = []
         time_series_data = []
 
-        with st.spinner(f"Evaluating {selected_model}..."):
-            model = models[selected_model]
-            if model is None:
-                st.warning(f"{selected_model} model not available")
-                return
+        for selected_model in selected_models:  # Loop through all selected models
+            with st.spinner(f"Evaluating {selected_model}..."):
+                model = models[selected_model]
+                if model is None:
+                    st.warning(f"{selected_model} model not available")
+                    continue
 
-            try:
-                # Make predictions
-                if selected_model == 'LSTM':
-                    X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
-                    predictions = model.predict(X_test_array).flatten()
-                else:
-                    predictions = model.predict(X_test)
+                try:
+                    # Make predictions
+                    if selected_model == 'LSTM':
+                        X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
+                        predictions = model.predict(X_test_array).flatten()
+                    else:
+                        predictions = model.predict(X_test)
 
-                # Calculate metrics
-                metrics = {
-                    'MAE': mean_absolute_error(y_test, predictions),
-                    'MSE': mean_squared_error(y_test, predictions),
-                    'RMSE': np.sqrt(mean_squared_error(y_test, predictions)),
-                    'MAPE': np.mean(np.abs((y_test - predictions) / y_test)) * 100,
-                    'R2': r2_score(y_test, predictions)
-                }
-                eval_metrics[selected_model] = metrics
+                    # Calculate metrics
+                    metrics = {
+                        'MAE': mean_absolute_error(y_test, predictions),
+                        'MSE': mean_squared_error(y_test, predictions),
+                        'RMSE': np.sqrt(mean_squared_error(y_test, predictions)),
+                        'MAPE': np.mean(np.abs((y_test - predictions) / y_test)) * 100,
+                        'R2': r2_score(y_test, predictions)
+                    }
+                    eval_metrics[selected_model] = metrics
 
-                # Store data for visualizations
-                predictions_data.append({
-                    'Model': selected_model,
-                    'Actual': y_test,
-                    'Predicted': predictions
-                })
-                
-                # Store time series data
-                time_series_data.append({
-                    'Model': selected_model,
-                    'Dates': data_prep.index[split_idx:],
-                    'Actual': y_test,
-                    'Predicted': predictions
-                })
+                    # Store data for visualizations
+                    predictions_data.append({
+                        'Model': selected_model,
+                        'Actual': y_test,
+                        'Predicted': predictions
+                    })
+                    
+                    # Store time series data
+                    time_series_data.append({
+                        'Model': selected_model,
+                        'Dates': data_prep.index[split_idx:],
+                        'Actual': y_test,
+                        'Predicted': predictions
+                    })
 
-            except Exception as e:
-                st.error(f"Error evaluating {selected_model}: {str(e)}")
-                return
+                except Exception as e:
+                    st.error(f"Error evaluating {selected_model}: {str(e)}")
+                    continue
 
         # Display results
-        st.subheader(f"📊 Evaluation Results for {coin_name} - {selected_model}")
-        
+        if not eval_metrics:
+            st.error("No models were successfully evaluated")
+            return
+
+        st.subheader(f"📊 Evaluation Results for {coin_name}")
+            
         # Metrics table with enhanced styling
         with st.expander("Detailed Metrics", expanded=True):
             metrics_df = pd.DataFrame.from_dict(eval_metrics, orient='index')
@@ -1884,11 +1983,11 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
                 'RMSE': '{:.4f}',
                 'MAPE': '{:.2f}%',
                 'R2': '{:.4f}'
-            }).applymap(lambda x: 'font-weight: bold', subset=['R2'])
+            }).map(lambda x: 'font-weight: bold', subset=['R2'])
             
             # Apply color to each metric column
             for metric in metrics_df.columns:
-                styled_metrics = styled_metrics.applymap(
+                styled_metrics = styled_metrics.map(
                     lambda x, m=metric: color_metric(x, m), 
                     subset=[metric]
                 )
@@ -1900,17 +1999,17 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
             st.download_button(
                 label="Download Metrics as CSV",
                 data=csv,
-                file_name=f'{coin_name}_{selected_model}_metrics.csv',
+                file_name=f'{coin_name}_metrics.csv',
                 mime='text/csv',
                 key=f"dl_metrics_{coin_index}"
             )
 
         # Time Series Visualization
         st.subheader("⏳ Time Series Performance")
-        
+
         fig_ts = go.Figure()
-        
-        # Add actual values
+
+        # Add actual values (only once)
         fig_ts.add_trace(go.Scatter(
             x=time_series_data[0]['Dates'],
             y=time_series_data[0]['Actual'],
@@ -1919,19 +2018,20 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
             line=dict(color='black', width=2),
             hovertemplate='Date: %{x}<br>Price: %{y:.4f}'
         ))
-        
-        # Add predicted values
-        fig_ts.add_trace(go.Scatter(
-            x=time_series_data[0]['Dates'],
-            y=time_series_data[0]['Predicted'],
-            mode='lines',
-            name=f"{selected_model} Predicted",
-            line=dict(dash='dash'),
-            hovertemplate='Date: %{x}<br>Predicted: %{y:.4f}'
-        ))
-        
+
+        # Add predicted values for each model
+        for model_data in time_series_data:
+            fig_ts.add_trace(go.Scatter(
+                x=model_data['Dates'],
+                y=model_data['Predicted'],
+                mode='lines',
+                name=f"{model_data['Model']} Predicted",
+                line=dict(dash='dash'),
+                hovertemplate='Date: %{x}<br>Predicted: %{y:.4f}'
+            ))
+
         fig_ts.update_layout(
-            title=f'Actual vs Predicted Over Time ({selected_model})',
+            title='Actual vs Predicted Over Time',
             xaxis_title='Date',
             yaxis_title='Price',
             hovermode="x unified",
@@ -1941,53 +2041,56 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
 
         # Actual vs Predicted scatter plot
         st.subheader("🎯 Prediction Accuracy")
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            fig_scatter = go.Figure()
-            
-            fig_scatter.add_trace(go.Scatter(
-                x=predictions_data[0]['Actual'],
-                y=predictions_data[0]['Predicted'],
-                mode='markers',
-                name=selected_model,
-                marker=dict(size=8, opacity=0.7),
-                hovertemplate='Actual: %{x:.4f}<br>Predicted: %{y:.4f}'
-            ))
-            
-            # Add perfect prediction line
-            min_val = min(predictions_data[0]['Actual'])
-            max_val = max(predictions_data[0]['Actual'])
-            fig_scatter.add_trace(go.Scatter(
-                x=[min_val, max_val],
-                y=[min_val, max_val],
-                mode='lines',
-                name='Perfect Prediction',
-                line=dict(color='red', dash='dash'),
-                hovertemplate=None
-            ))
-            
-            fig_scatter.update_layout(
-                title=f'Actual vs Predicted Values ({selected_model})',
-                xaxis_title='Actual Price',
-                yaxis_title='Predicted Price',
-                showlegend=True,
-                height=500
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
-        
-        with col2:
-            st.metric("R² Score", f"{metrics_df.loc[selected_model, 'R2']:.4f}")
-            st.metric("RMSE", f"{metrics_df.loc[selected_model, 'RMSE']:.4f}")
-            st.metric("MAE", f"{metrics_df.loc[selected_model, 'MAE']:.4f}")
-            st.download_button(
-                "Download Plot Data",
-                pd.DataFrame(predictions_data).to_csv().encode('utf-8'),
-                file_name=f'{coin_name}_{selected_model}_prediction_data.csv',
-                mime='text/csv',
-                key=f"dl_pred_data_{coin_index}"
-            )
 
+        for model_data in predictions_data:
+            st.markdown(f"**{model_data['Model']}**")
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                fig_scatter = go.Figure()
+                
+                fig_scatter.add_trace(go.Scatter(
+                    x=model_data['Actual'],
+                    y=model_data['Predicted'],
+                    mode='markers',
+                    name=model_data['Model'],
+                    marker=dict(size=8, opacity=0.7),
+                    hovertemplate='Actual: %{x:.4f}<br>Predicted: %{y:.4f}'
+                ))
+                
+                # Add perfect prediction line
+                min_val = min(model_data['Actual'])
+                max_val = max(model_data['Actual'])
+                fig_scatter.add_trace(go.Scatter(
+                    x=[min_val, max_val],
+                    y=[min_val, max_val],
+                    mode='lines',
+                    name='Perfect Prediction',
+                    line=dict(color='red', dash='dash'),
+                    hovertemplate=None
+                ))
+                
+                fig_scatter.update_layout(
+                    title=f'Actual vs Predicted Values ({model_data["Model"]})',
+                    xaxis_title='Actual Price',
+                    yaxis_title='Predicted Price',
+                    showlegend=True,
+                    height=400
+                )
+                st.plotly_chart(fig_scatter, use_container_width=True)
+            
+            with col2:
+                metrics = eval_metrics[model_data['Model']]
+                st.metric("R² Score", f"{metrics['R2']:.4f}")
+                st.metric("RMSE", f"{metrics['RMSE']:.4f}")
+                st.metric("MAE", f"{metrics['MAE']:.4f}")
+                st.download_button(
+                    f"Download {model_data['Model']} Data",
+                    pd.DataFrame(model_data).to_csv().encode('utf-8'),
+                    file_name=f'{coin_name}_{model_data["Model"]}_prediction_data.csv',
+                    mime='text/csv',
+                    key=f"dl_pred_data_{coin_index}_{model_data['Model']}"
+                )
         # Show retrained notice if applicable
         if retrained:
             st.info("ℹ️ Note: Models were retrained with current environment settings")
@@ -2916,105 +3019,50 @@ def main():
         elif prediction_option == "Training":
             st.header("Model Training")
             
-            # Initialize training state with proper structure
-            if 'training_state' not in st.session_state:
-                st.session_state.training_state = {
-                    'started': False,
-                    'completed': False,
-                    'progress': {},
-                    'overall': 0,
-                    'total_models': min(4, selected_data.shape[1]) * 4 if 'selected_data' in locals() else 4,
-                    'error': None,
-                    'last_update': time.time()
-                }
+            # Set up session state for training
+            initialize_session_state()
+            setup_logging()
             
-            # Check if training is complete
-            if st.session_state.training_state.get('completed', False):
-                st.success("✅ All models trained successfully!")
-                if st.button("Reset Training"):
-                    st.session_state.training_state = {
-                        'started': False,
-                        'completed': False,
-                        'progress': {},
-                        'overall': 0,
-                        'total_models': min(4, selected_data.shape[1]) * 4,
-                        'error': None,
-                        'last_update': time.time()
-                    }
+            st.subheader("Train Models for Cryptocurrency Prediction")
+            st.write("""This will train multiple machine learning models for each selected cryptocurrency. 
+                    The process includes Gradient Boosting, SVR, XGBoost, and LSTM neural networks.""")
+            
+            # Display current training status and controls
+            if st.session_state.get('models_trained', False):
+                st.success("✅ All models have been successfully trained!")
+                if st.button("Train Again"):
+                    initialize_session_state()
                     st.rerun()
-            
-            # Check for errors
-            elif st.session_state.training_state.get('error'):
-                st.error(f"❌ Training failed: {st.session_state.training_state['error']}")
-                if st.button("Retry Training"):
-                    st.session_state.training_state['error'] = None
-                    st.session_state.training_state['started'] = False
-                    st.rerun()
-            
-            # Check if training is in progress
-            elif st.session_state.training_state.get('started', False):
-                st.warning("🔄 Training in progress...")
-                
-                # Display overall progress
-                if 'overall' in st.session_state.training_state and 'total_models' in st.session_state.training_state:
-                    progress_value = st.session_state.training_state['overall'] / st.session_state.training_state['total_models']
-                    st.progress(min(1.0, max(0.0, progress_value)))
-                    st.write(f"Overall progress: {st.session_state.training_state['overall']}/{st.session_state.training_state['total_models']} models completed")
-                
-                # Display per-coin progress
-                if 'progress' in st.session_state.training_state:
-                    for coin_name, progress in st.session_state.training_state['progress'].items():
-                        with st.expander(f"Progress for {coin_name}"):
-                            col1, col2 = st.columns([1, 4])
-                            with col1:
-                                status_icon = "✅" if progress.get('status') == 'Completed' else "❌" if progress.get('status', '').startswith('Failed') else "🔄"
-                                st.write(status_icon)
-                            
-                            with col2:
-                                st.write(f"**Status:** {progress.get('status', 'Unknown')}")
-                                if progress.get('current_model'):
-                                    st.write(f"**Current Model:** {progress['current_model']}")
-                                if progress.get('message'):
-                                    st.write(progress['message'])
-                                if progress.get('status') not in ['Completed', 'Failed']:
-                                    st.progress(min(1.0, max(0.0, progress.get('progress', 0) / 100)))
-                
-                # Auto-refresh logic
-                if not st.session_state.training_state.get('completed', False):
-                    time.sleep(2)  # Refresh every 2 seconds
-                    st.rerun()
-            
-            # Initial state - ready to start training
-            else:
-                if st.button("🚀 Train All Models"):
-                    # Initialize all state before starting thread
-                    st.session_state.training_state = {
-                        'started': True,
-                        'completed': False,
-                        'progress': {},
-                        'overall': 0,
-                        'total_models': min(4, selected_data.shape[1]) * 4,
-                        'error': None,
-                        'last_update': time.time()
-                    }
                     
-                    # Start background thread
+            elif st.session_state.training_state.get('started', False):
+                # Show training in progress UI
+                display_training_progress()
+                    
+            else:
+                # Initial state - show training options
+                with st.expander("Advanced Training Options", expanded=False):
+                    st.info("Default settings will train 4 model types for up to 4 cryptocurrencies.")
+                    st.write("Training all models may take several minutes, especially for LSTM networks.")
+                
+                if st.button("🚀 Start Training Models"):
+                    # Start background thread for training
                     thread = threading.Thread(
                         target=train_all_models_background,
                         args=(selected_data,),
                         daemon=True
                     )
                     thread.start()
+                    st.session_state.training_thread = thread
                     st.rerun()
         
         elif prediction_option == "Training Model Metrics":
             st.header("Selected Model Metrics")
             coins = st.multiselect("Select coins:", selected_data.columns)
-            model = st.selectbox("Select model:", ['all', 'Gradient Boosting', 'SVR', 'XGBoost', 'LSTM'])
+        
             
             for coin in coins:
                 coin_index = selected_data.columns.get_loc(coin)
-                evaluate_models_selected_coin(selected_data, coin_index, model)
+                evaluate_models_selected_coin(selected_data, coin_index)
         elif prediction_option == "Prediction Graphs":
             st.header("Cryptocurrency Price Prediction")
             
