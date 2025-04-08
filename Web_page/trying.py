@@ -2932,7 +2932,7 @@ def main():
         about_us()
     elif page == "Dataset":
         # crypto_data = data_fetcher_section()
-        dataset_section(crypto_data)
+        dataset_section()
     elif page == "Coin Correlation":
         analyze_coin_correlation()
     elif page == "Moving Average":
