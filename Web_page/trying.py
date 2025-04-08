@@ -532,24 +532,44 @@ start_date = end_date - timedelta(days=4*365)  # 4 years of data
 # Define cache file path
 data_file = "Cleaned_combined_crypto_data.csv"
 
-# Check if data already exists and is recent enough
+# Check if we should use cached data
+use_cached = False
+missing_tickers = []
+
 if os.path.exists(data_file):
     # Check how old the file is
     file_mtime = datetime.fromtimestamp(os.path.getmtime(data_file))
     days_old = (datetime.now() - file_mtime).days
     
-    if days_old < 1:  # If less than 1 day old, use it
-        combined_data = pd.read_csv(data_file, parse_dates=['Date'], index_col='Date')
-        st.success(f"Loaded cached data from {file_mtime.strftime('%Y-%m-%d')}")
+    # Load the cached data to check what tickers it contains
+    temp_data = pd.read_csv(data_file, parse_dates=['Date'], index_col='Date')
+    
+    # Get unique tickers in the dataset
+    if 'Crypto' in temp_data.columns:
+        cached_tickers = temp_data['Crypto'].unique().tolist()
     else:
-        st.info(f"Cached data is {days_old} days old. Refreshing...")
-        # Continue to fetch fresh data
+        cached_tickers = []
+    
+    # Check if all required tickers are in the cache
+    missing_tickers = [t for t in CRYPTO_TICKERS if t not in cached_tickers]
+    
+    # Decide whether to use cache based on age and completeness
+    if days_old < 1 and not missing_tickers:
+        combined_data = temp_data
+        st.success(f"Loaded complete cached data from {file_mtime.strftime('%Y-%m-%d')}")
+        use_cached = True
+    elif days_old >= 1:
+        st.info(f"Cached data is {days_old} days old. Refreshing all data...")
+        combined_data = None
+    elif missing_tickers:
+        st.info(f"Cached data is missing {len(missing_tickers)} cryptocurrencies. Refreshing all data...")
         combined_data = None
 else:
+    st.info("No cached data found. Fetching fresh data...")
     combined_data = None
 
 # If we need to fetch fresh data
-if combined_data is None:
+if not use_cached:
     # Setup progress tracking
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -580,6 +600,13 @@ if combined_data is None:
     else:
         st.error("No data was fetched. Check your internet connection or ticker symbols.")
 
+# Add a refresh button
+if st.button("Force Refresh Data"):
+    if os.path.exists(data_file):
+        os.remove(data_file)
+    st.experimental_rerun()  # Restart the script to force a fresh data fetch
+
+    
 # Generate selected coins through PCA and clustering
 def generate_selected_data(data):
     pivoted_data = data.pivot(columns='Crypto', values='Close')
