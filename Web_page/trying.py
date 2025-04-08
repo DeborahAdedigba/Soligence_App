@@ -1801,14 +1801,14 @@ def evaluate_models_selected_coin(data, coin_index):
         selected_model = st.multiselect(
             "Select models to evaluate:",
             options=available_models,
-            default=[available_models[0]],  # Default to first model
-            key=f"model_select_{coin_index}"
+            default=[available_models[0]] if available_models else [],  # Default to first model if available
+            key=f"multimodel_select_{coin_index}"
         )
 
         # Ensure at least one model is selected
-        if not selected_model:
+        if not selected_model and available_models:
             st.warning("Please select at least one model to evaluate.")
-            selected_model = [available_models[0]]  # Fallback to first model
+            selected_model = [available_models[0]]  
 
         # Evaluation metrics storage
         eval_metrics = {}
