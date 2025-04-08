@@ -520,6 +520,7 @@ def display_training_progress():
             st.rerun()
 
 
+# Fetch cryptocurrency data
 # List of reliable cryptocurrency tickers (GBP pairs)
 CRYPTO_TICKERS = [
     'BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 
@@ -531,31 +532,26 @@ CRYPTO_TICKERS = [
     'SAND-GBP', 'MANA-GBP', 'APE-GBP', 'GALA-GBP', 'CHZ-GBP'
 ]
 
-def fetch_crypto_data(tickers, force_refresh=False):
-    """
-    Fetch cryptocurrency data from Yahoo Finance
+def get_crypto_data(tickers=CRYPTO_TICKERS, force_refresh=False):
     
-    Args:
-        tickers (list): List of cryptocurrency tickers
-        force_refresh (bool): If True, deletes cached data
+    cache_file = "Cleaned_combined_crypto_data.csv"
     
-    Returns:
-        pd.DataFrame: Combined cryptocurrency data
-    """
     # Remove cached data if forced
-    cache_file = "crypto_data.csv"
     if force_refresh and os.path.exists(cache_file):
         os.remove(cache_file)
         st.info("Deleted old data cache. Fetching fresh data...")
     
     # Try to load cached data if exists
     if os.path.exists(cache_file) and not force_refresh:
-        df = pd.read_csv(cache_file, parse_dates=['Date'], index_col='Date')
-        st.success(f"Loaded cached data up to {df.index[-1].date()}")
-        return df
+        try:
+            combined_data = pd.read_csv(cache_file, parse_dates=['Date'], index_col='Date')
+            st.success(f"Loaded cached data up to {combined_data.index[-1].date()}")
+            return combined_data
+        except Exception as e:
+            st.warning(f"Error loading cached data: {e}. Fetching fresh data...")
     
     # Fetch fresh data from Yahoo Finance
-    all_data = []
+    combined_data = pd.DataFrame()
     
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -565,10 +561,12 @@ def fetch_crypto_data(tickers, force_refresh=False):
             status_text.text(f"Fetching {ticker}... ({i+1}/{len(tickers)})")
             progress_bar.progress((i+1)/len(tickers))
             
-            data = yf.Ticker(ticker).history(period="max", interval="1d")
+            crypto = yf.Ticker(ticker)
+            data = crypto.history(period="max")
+            
             if not data.empty:
-                data['Ticker'] = ticker
-                all_data.append(data)
+                data['Crypto'] = ticker  # Changed from 'Ticker' to 'Crypto' for backward compatibility
+                combined_data = pd.concat([combined_data, data], axis=0)
                 latest_date = data.index[-1].strftime('%Y-%m-%d')
                 st.write(f"✅ {ticker} (up to {latest_date})")
             else:
@@ -576,53 +574,16 @@ def fetch_crypto_data(tickers, force_refresh=False):
         except Exception as e:
             st.error(f"Error fetching {ticker}: {str(e)}")
     
-    if not all_data:
+    if combined_data.empty:
         st.error("No data was fetched. Check your internet connection or ticker symbols.")
         return pd.DataFrame()
     
-    # Combine all data
-    combined = pd.concat(all_data)
+    # Clean and save data (maintaining old format for compatibility)
+    combined_data = combined_data.drop(['Dividends', 'Stock Splits'], axis=1, errors='ignore')
+    combined_data.to_csv(cache_file)
+    st.success(f"Saved new data with {len(combined_data):,} rows (up to {combined_data.index[-1].date()})")
     
-    # Clean and save data
-    combined = combined[['Ticker', 'Open', 'High', 'Low', 'Close', 'Volume']]
-    combined.to_csv(cache_file)
-    st.success(f"Saved new data with {len(combined):,} rows (up to {combined.index[-1].date()})")
-    
-    return combined
-
-def data_fetcher_section():
-    """Display the data fetching interface"""
-    st.title("Cryptocurrency Data Fetcher")
-    st.write(f"Fetching data for {len(CRYPTO_TICKERS)} cryptocurrencies")
-
-    # Add refresh button
-    force_refresh = st.button("Force Refresh Data")
-
-    # Fetch data
-    with st.spinner("Downloading cryptocurrency data..."):
-        crypto_data = fetch_crypto_data(CRYPTO_TICKERS, force_refresh=force_refresh)
-
-    # Show data if available
-    if not crypto_data.empty:
-        st.subheader("Latest Data Preview")
-        st.dataframe(crypto_data.tail(10))
-        
-        # Show most recent date for each ticker
-        st.subheader("Latest Update Dates")
-        latest_dates = crypto_data.groupby('Ticker').apply(lambda x: x.index.max().date())
-        st.dataframe(latest_dates)
-        
-        # Download button
-        csv = crypto_data.to_csv().encode('utf-8')
-        st.download_button(
-            label="Download Full Data as CSV",
-            data=csv,
-            file_name='cryptocurrency_data.csv',
-            mime='text/csv'
-        )
-    
-    return crypto_data
-
+    return combined_data
 
 # Generate selected coins through PCA and clustering
 def generate_selected_data(data):
@@ -1053,7 +1014,7 @@ def about_us():
         </div>
         """, unsafe_allow_html=True)
 
-def dataset_section(combined_data):
+def dataset_section():
     """Display and interact with cryptocurrency dataset with improved UI/UX."""
     
     # Header section with more context
@@ -1072,7 +1033,7 @@ def dataset_section(combined_data):
         with st.expander("Filter Options", expanded=True):
             selected_crypto = st.selectbox(
                 "Select cryptocurrency:",
-                ['All'] + sorted(combined_data['Ticker'].unique()),
+                ['All'] + sorted(combined_data['Crypto'].unique()),
                 help="Filter data by specific cryptocurrency"
             )
         
@@ -1105,7 +1066,7 @@ def dataset_section(combined_data):
     filtered_data = combined_data.copy()
     
     if selected_crypto != 'All':
-        filtered_data = filtered_data[filtered_data['Ticker'] == selected_crypto]
+        filtered_data = filtered_data[filtered_data['Crypto'] == selected_crypto]
     
     if sort_column:
         filtered_data = filtered_data.sort_values(by=sort_column, ascending=ascending)
@@ -2931,8 +2892,7 @@ def main():
     elif page == "About Us":
         about_us()
     elif page == "Dataset":
-        crypto_data = data_fetcher_section()
-        dataset_section(crypto_data)
+        dataset_section()
     elif page == "Coin Correlation":
         analyze_coin_correlation()
     elif page == "Moving Average":
