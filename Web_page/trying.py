@@ -2951,7 +2951,7 @@ def main():
             
             for coin in coins:
                 coin_index = selected_data.columns.get_loc(coin)
-                evaluate_models_selected_coin(selected_data, coin_index, model)
+                evaluate_models_selected_coin(selected_data, coin_index)
         elif prediction_option == "Prediction Graphs":
             st.header("Cryptocurrency Price Prediction")
             
