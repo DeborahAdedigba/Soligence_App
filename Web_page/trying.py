@@ -520,13 +520,6 @@ def display_training_progress():
             st.rerun()
 
 
-# Fetch cryptocurrency data
-import os
-import pandas as pd
-import yfinance as yf
-from datetime import datetime
-import streamlit as st
-
 # List of reliable cryptocurrency tickers (GBP pairs)
 CRYPTO_TICKERS = [
     'BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 
@@ -597,35 +590,39 @@ def fetch_crypto_data(tickers, force_refresh=False):
     
     return combined
 
-# Streamlit UI
-st.title("Cryptocurrency Data Fetcher")
-st.write(f"Fetching data for {len(CRYPTO_TICKERS)} cryptocurrencies")
+def data_fetcher_section():
+    """Display the data fetching interface"""
+    st.title("Cryptocurrency Data Fetcher")
+    st.write(f"Fetching data for {len(CRYPTO_TICKERS)} cryptocurrencies")
 
-# Add refresh button
-force_refresh = st.button("Force Refresh Data")
+    # Add refresh button
+    force_refresh = st.button("Force Refresh Data")
 
-# Fetch data
-with st.spinner("Downloading cryptocurrency data..."):
-    crypto_data = fetch_crypto_data(CRYPTO_TICKERS, force_refresh=force_refresh)
+    # Fetch data
+    with st.spinner("Downloading cryptocurrency data..."):
+        crypto_data = fetch_crypto_data(CRYPTO_TICKERS, force_refresh=force_refresh)
 
-# Show data if available
-if not crypto_data.empty:
-    st.subheader("Latest Data Preview")
-    st.dataframe(crypto_data.tail(10))
+    # Show data if available
+    if not crypto_data.empty:
+        st.subheader("Latest Data Preview")
+        st.dataframe(crypto_data.tail(10))
+        
+        # Show most recent date for each ticker
+        st.subheader("Latest Update Dates")
+        latest_dates = crypto_data.groupby('Ticker').apply(lambda x: x.index.max().date())
+        st.dataframe(latest_dates)
+        
+        # Download button
+        csv = crypto_data.to_csv().encode('utf-8')
+        st.download_button(
+            label="Download Full Data as CSV",
+            data=csv,
+            file_name='cryptocurrency_data.csv',
+            mime='text/csv'
+        )
     
-    # Show most recent date for each ticker
-    st.subheader("Latest Update Dates")
-    latest_dates = crypto_data.groupby('Ticker').apply(lambda x: x.index.max().date())
-    st.dataframe(latest_dates)
-    
-    # Download button
-    csv = crypto_data.to_csv().encode('utf-8')
-    st.download_button(
-        label="Download Full Data as CSV",
-        data=csv,
-        file_name='cryptocurrency_data.csv',
-        mime='text/csv'
-    )
+    return crypto_data
+
 
 # Generate selected coins through PCA and clustering
 def generate_selected_data(data):
@@ -1056,7 +1053,7 @@ def about_us():
         </div>
         """, unsafe_allow_html=True)
 
-def dataset_section():
+def dataset_section(combined_data):
     """Display and interact with cryptocurrency dataset with improved UI/UX."""
     
     # Header section with more context
@@ -1075,7 +1072,7 @@ def dataset_section():
         with st.expander("Filter Options", expanded=True):
             selected_crypto = st.selectbox(
                 "Select cryptocurrency:",
-                ['All'] + sorted(combined_data['Crypto'].unique()),
+                ['All'] + sorted(combined_data['Ticker'].unique()),
                 help="Filter data by specific cryptocurrency"
             )
         
@@ -1108,7 +1105,7 @@ def dataset_section():
     filtered_data = combined_data.copy()
     
     if selected_crypto != 'All':
-        filtered_data = filtered_data[filtered_data['Crypto'] == selected_crypto]
+        filtered_data = filtered_data[filtered_data['Ticker'] == selected_crypto]
     
     if sort_column:
         filtered_data = filtered_data.sort_values(by=sort_column, ascending=ascending)
@@ -2934,7 +2931,8 @@ def main():
     elif page == "About Us":
         about_us()
     elif page == "Dataset":
-        dataset_section()
+        crypto_data = data_fetcher_section()
+        dataset_section(crypto_data)
     elif page == "Coin Correlation":
         analyze_coin_correlation()
     elif page == "Moving Average":
