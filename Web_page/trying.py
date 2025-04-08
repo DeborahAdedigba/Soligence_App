@@ -1796,14 +1796,19 @@ def evaluate_models_selected_coin(data, coin_index):
                     st.error(f"Model loading failed again: {str(e)}")
                     return
 
-        # Single model selection
+        # Multiple model selection
         available_models = list(models.keys())
-        selected_model = st.selectbox(
-            "Select model to evaluate:",
+        selected_models = st.multiselect(
+            "Select models to evaluate:",
             options=available_models,
-            index=0,
+            default=[available_models[0]],  # Default to first model
             key=f"model_select_{coin_index}"
         )
+
+        # Ensure at least one model is selected
+        if not selected_models:
+            st.warning("Please select at least one model to evaluate.")
+            selected_models = [available_models[0]]  # Fallback to first model
 
         # Evaluation metrics storage
         eval_metrics = {}
@@ -2947,7 +2952,7 @@ def main():
         elif prediction_option == "Training Model Metrics":
             st.header("Selected Model Metrics")
             coins = st.multiselect("Select coins:", selected_data.columns)
-            # model = st.selectbox("Select model:", ['all', 'Gradient Boosting', 'SVR', 'XGBoost', 'LSTM'])
+        
             
             for coin in coins:
                 coin_index = selected_data.columns.get_loc(coin)
