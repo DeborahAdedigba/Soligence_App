@@ -1806,7 +1806,7 @@ def evaluate_models_selected_coin(data, coin_index):
         )
 
         # Ensure at least one model is selected
-        if not selected_models:
+        if not selected_model:
             st.warning("Please select at least one model to evaluate.")
             selected_model = [available_models[0]]  # Fallback to first model
 
