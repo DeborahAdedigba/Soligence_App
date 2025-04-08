@@ -5,48 +5,42 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly.graph_objects as go
+import plotly.express as px  
+from plotly.subplots import make_subplots
 from ta.trend import SMAIndicator
 from datetime import datetime, timedelta
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
-import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.svm import SVR
-from xgboost import XGBRegressor
-from keras.models import Sequential, load_model
-from keras.layers import LSTM, Dense
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-import joblib
-import mplfinance as mpf
-import matplotlib.dates as mdates
-import feedparser
 from sklearn.linear_model import LinearRegression
 from sklearn.impute import SimpleImputer
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn import __version__ as sklearn_version
+import sklearn
+import xgboost
+from xgboost import XGBRegressor, __version__ as xgboost_version
+from keras.models import Sequential, load_model
+from keras.layers import LSTM, Dense
+from keras.callbacks import EarlyStopping
 import tensorflow as tf
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import mplfinance as mpf
+import feedparser
 import itertools
 from scipy.stats import gaussian_kde
 import threading
 import time
 import pickle
-import plotly.express as px  
 import yfinance as yf
-from plotly.subplots import make_subplots
-from joblib import Memory
-import pkg_resources
-from keras.callbacks import EarlyStopping
+import joblib
+from joblib import Memory, __version__ as joblib_version
 import logging
 from logging.handlers import RotatingFileHandler
-import sklearn
-from sklearn import __version__ as sklearn_version
-import sklearn
-from sklearn import __version__ as sklearn_version
-import xgboost
-from xgboost import __version__ as xgboost_version
-import tensorflow as tf
-import joblib
-from joblib import __version__ as joblib_version
+
 
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -80,9 +74,9 @@ def initialize_session_state():
     if 'model_paths' not in st.session_state:
         st.session_state.model_paths = {}
     if 'training_progress' not in st.session_state:
-        st.session_state.training_progress = {}  # For per-coin progress
+        st.session_state.training_progress = {}  
     if 'overall_progress' not in st.session_state:
-        st.session_state.overall_progress = 0  # For tracking total models completed
+        st.session_state.overall_progress = 0  
     if 'training_thread' not in st.session_state:
         st.session_state.training_thread = None
     if 'training_started' not in st.session_state:
@@ -430,11 +424,11 @@ def train_all_models_background(selected_data):
         if 'models_trained' not in st.session_state:
             st.session_state.models_trained = False
         if 'training_progress' not in st.session_state:
-            st.session_state.training_progress = {}  # Per-coin progress
+            st.session_state.training_progress = {}  
         if 'overall_progress' not in st.session_state:
-            st.session_state.overall_progress = 0    # Total models completed
+            st.session_state.overall_progress = 0    
         if 'total_models' not in st.session_state:
-            st.session_state.total_models = min(4, selected_data.shape[1]) * 4  # 4 models per coin
+            st.session_state.total_models = min(4, selected_data.shape[1]) * 4  
         if 'last_update' not in st.session_state:
             st.session_state.last_update = time.time()
         if 'training_error' not in st.session_state:
@@ -447,8 +441,8 @@ def train_all_models_background(selected_data):
     with threading.Lock():
         st.session_state.training_started = True
         st.session_state.models_trained = False
-        st.session_state.training_progress = {}  # Reset per-coin progress
-        st.session_state.overall_progress = 0    # Reset overall counter
+        st.session_state.training_progress = {}  
+        st.session_state.overall_progress = 0    
         st.session_state.training_error = None
         st.session_state.last_update = time.time()
     
@@ -464,7 +458,7 @@ def train_all_models_background(selected_data):
                 
                 # Update overall progress
                 with threading.Lock():
-                    st.session_state.overall_progress += 4  # 4 models per coin
+                    st.session_state.overall_progress += 4  
                     st.session_state.last_update = time.time()
             
             # Mark training as complete
@@ -561,7 +555,7 @@ ticker_symbols = ['BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 'XRP-G
                  'HEX-GBP', 'XCH-GBP', 'FTM-GBP', 'AXS-GBP', 'NEO-GBP', 'SAND-GBP']
 
 end_date = datetime.now()
-start_date = end_date - timedelta(days=4*365)  # four years ago
+start_date = end_date - timedelta(days=4*365)  
 
 # Try to load existing data or fetch fresh data
 data_file = "Cleaned_combined_crypto_data.csv"
@@ -1473,7 +1467,7 @@ def plot_moving_average():
     # Display the plot
     st.plotly_chart(fig, use_container_width=True)
     
-    # Add metrics below the chart (not in sidebar)
+    # Add metrics below the chart 
     col1, col2 = st.columns(2)
     
     with col1:
@@ -2220,16 +2214,7 @@ def evaluate_and_plot_model(coin_index, model_choice, frequency, num_periods, se
         st.metric("Average Confidence Range", f"{mean_confidence_range:.4f}")
 
 
-from datetime import datetime, timedelta
-import pandas as pd
-from ta.trend import SMAIndicator
-import os
-import joblib
-import pandas as pd
-import streamlit as st
-from datetime import datetime, timedelta
-from tensorflow.keras.models import load_model
-from ta.trend import SMAIndicator
+
 def apply_ma_trading_strategy(chosen_coin, combined_data):
     """Apply moving average trading strategy with error handling"""
     try:
@@ -2644,7 +2629,7 @@ def find_best_coins(model_type, desired_profit, num_days):
     # Make predictions for all coins
     for coin, model in models.items():
         try:
-            # Get the predicted price directly (same method as single-coin prediction)
+            # Get the predicted price directly 
             features = [f'{coin}_lag_{lag}' for lag in range(1, 4)]
             
             data_copy = selected_data.copy()
@@ -2948,7 +2933,7 @@ def main():
             if 'training_progress' not in st.session_state:
                 st.session_state.training_progress = 0
             if 'total_models' not in st.session_state:
-                st.session_state.total_models = 4  # Update this with your actual number of models
+                st.session_state.total_models = 4  
 
             # Check if training is complete
             if st.session_state.models_trained:
