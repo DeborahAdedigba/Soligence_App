@@ -1798,7 +1798,7 @@ def evaluate_models_selected_coin(data, coin_index):
 
         # Multiple model selection
         available_models = list(models.keys())
-        selected_model = st.multiselect(
+        selected_models = st.multiselect(
             "Select models to evaluate:",
             options=available_models,
             default=[available_models[0]] if available_models else [],  # Default to first model if available
@@ -1806,61 +1806,66 @@ def evaluate_models_selected_coin(data, coin_index):
         )
 
         # Ensure at least one model is selected
-        if not selected_model and available_models:
+        if not selected_models and available_models:
             st.warning("Please select at least one model to evaluate.")
-            selected_model = [available_models[0]]  
+            selected_models = [available_models[0]]  
 
         # Evaluation metrics storage
         eval_metrics = {}
         predictions_data = []
         time_series_data = []
 
-        with st.spinner(f"Evaluating {selected_model}..."):
-            model = models[selected_model]
-            if model is None:
-                st.warning(f"{selected_model} model not available")
-                return
+        for selected_model in selected_models:  # Loop through all selected models
+            with st.spinner(f"Evaluating {selected_model}..."):
+                model = models[selected_model]
+                if model is None:
+                    st.warning(f"{selected_model} model not available")
+                    continue
 
-            try:
-                # Make predictions
-                if selected_model == 'LSTM':
-                    X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
-                    predictions = model.predict(X_test_array).flatten()
-                else:
-                    predictions = model.predict(X_test)
+                try:
+                    # Make predictions
+                    if selected_model == 'LSTM':
+                        X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
+                        predictions = model.predict(X_test_array).flatten()
+                    else:
+                        predictions = model.predict(X_test)
 
-                # Calculate metrics
-                metrics = {
-                    'MAE': mean_absolute_error(y_test, predictions),
-                    'MSE': mean_squared_error(y_test, predictions),
-                    'RMSE': np.sqrt(mean_squared_error(y_test, predictions)),
-                    'MAPE': np.mean(np.abs((y_test - predictions) / y_test)) * 100,
-                    'R2': r2_score(y_test, predictions)
-                }
-                eval_metrics[selected_model] = metrics
+                    # Calculate metrics
+                    metrics = {
+                        'MAE': mean_absolute_error(y_test, predictions),
+                        'MSE': mean_squared_error(y_test, predictions),
+                        'RMSE': np.sqrt(mean_squared_error(y_test, predictions)),
+                        'MAPE': np.mean(np.abs((y_test - predictions) / y_test)) * 100,
+                        'R2': r2_score(y_test, predictions)
+                    }
+                    eval_metrics[selected_model] = metrics
 
-                # Store data for visualizations
-                predictions_data.append({
-                    'Model': selected_model,
-                    'Actual': y_test,
-                    'Predicted': predictions
-                })
-                
-                # Store time series data
-                time_series_data.append({
-                    'Model': selected_model,
-                    'Dates': data_prep.index[split_idx:],
-                    'Actual': y_test,
-                    'Predicted': predictions
-                })
+                    # Store data for visualizations
+                    predictions_data.append({
+                        'Model': selected_model,
+                        'Actual': y_test,
+                        'Predicted': predictions
+                    })
+                    
+                    # Store time series data
+                    time_series_data.append({
+                        'Model': selected_model,
+                        'Dates': data_prep.index[split_idx:],
+                        'Actual': y_test,
+                        'Predicted': predictions
+                    })
 
-            except Exception as e:
-                st.error(f"Error evaluating {selected_model}: {str(e)}")
-                return
+                except Exception as e:
+                    st.error(f"Error evaluating {selected_model}: {str(e)}")
+                    continue
 
         # Display results
-        st.subheader(f"📊 Evaluation Results for {coin_name} - {selected_model}")
-        
+        if not eval_metrics:
+            st.error("No models were successfully evaluated")
+            return
+
+        st.subheader(f"📊 Evaluation Results for {coin_name}")
+            
         # Metrics table with enhanced styling
         with st.expander("Detailed Metrics", expanded=True):
             metrics_df = pd.DataFrame.from_dict(eval_metrics, orient='index')
@@ -1897,17 +1902,17 @@ def evaluate_models_selected_coin(data, coin_index):
             st.download_button(
                 label="Download Metrics as CSV",
                 data=csv,
-                file_name=f'{coin_name}_{selected_model}_metrics.csv',
+                file_name=f'{coin_name}_metrics.csv',
                 mime='text/csv',
                 key=f"dl_metrics_{coin_index}"
             )
 
         # Time Series Visualization
         st.subheader("⏳ Time Series Performance")
-        
+
         fig_ts = go.Figure()
-        
-        # Add actual values
+
+        # Add actual values (only once)
         fig_ts.add_trace(go.Scatter(
             x=time_series_data[0]['Dates'],
             y=time_series_data[0]['Actual'],
@@ -1916,19 +1921,20 @@ def evaluate_models_selected_coin(data, coin_index):
             line=dict(color='black', width=2),
             hovertemplate='Date: %{x}<br>Price: %{y:.4f}'
         ))
-        
-        # Add predicted values
-        fig_ts.add_trace(go.Scatter(
-            x=time_series_data[0]['Dates'],
-            y=time_series_data[0]['Predicted'],
-            mode='lines',
-            name=f"{selected_model} Predicted",
-            line=dict(dash='dash'),
-            hovertemplate='Date: %{x}<br>Predicted: %{y:.4f}'
-        ))
-        
+
+        # Add predicted values for each model
+        for model_data in time_series_data:
+            fig_ts.add_trace(go.Scatter(
+                x=model_data['Dates'],
+                y=model_data['Predicted'],
+                mode='lines',
+                name=f"{model_data['Model']} Predicted",
+                line=dict(dash='dash'),
+                hovertemplate='Date: %{x}<br>Predicted: %{y:.4f}'
+            ))
+
         fig_ts.update_layout(
-            title=f'Actual vs Predicted Over Time ({selected_model})',
+            title='Actual vs Predicted Over Time',
             xaxis_title='Date',
             yaxis_title='Price',
             hovermode="x unified",
@@ -1938,53 +1944,56 @@ def evaluate_models_selected_coin(data, coin_index):
 
         # Actual vs Predicted scatter plot
         st.subheader("🎯 Prediction Accuracy")
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            fig_scatter = go.Figure()
-            
-            fig_scatter.add_trace(go.Scatter(
-                x=predictions_data[0]['Actual'],
-                y=predictions_data[0]['Predicted'],
-                mode='markers',
-                name=selected_model,
-                marker=dict(size=8, opacity=0.7),
-                hovertemplate='Actual: %{x:.4f}<br>Predicted: %{y:.4f}'
-            ))
-            
-            # Add perfect prediction line
-            min_val = min(predictions_data[0]['Actual'])
-            max_val = max(predictions_data[0]['Actual'])
-            fig_scatter.add_trace(go.Scatter(
-                x=[min_val, max_val],
-                y=[min_val, max_val],
-                mode='lines',
-                name='Perfect Prediction',
-                line=dict(color='red', dash='dash'),
-                hovertemplate=None
-            ))
-            
-            fig_scatter.update_layout(
-                title=f'Actual vs Predicted Values ({selected_model})',
-                xaxis_title='Actual Price',
-                yaxis_title='Predicted Price',
-                showlegend=True,
-                height=500
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
-        
-        with col2:
-            st.metric("R² Score", f"{metrics_df.loc[selected_model, 'R2']:.4f}")
-            st.metric("RMSE", f"{metrics_df.loc[selected_model, 'RMSE']:.4f}")
-            st.metric("MAE", f"{metrics_df.loc[selected_model, 'MAE']:.4f}")
-            st.download_button(
-                "Download Plot Data",
-                pd.DataFrame(predictions_data).to_csv().encode('utf-8'),
-                file_name=f'{coin_name}_{selected_model}_prediction_data.csv',
-                mime='text/csv',
-                key=f"dl_pred_data_{coin_index}"
-            )
 
+        for model_data in predictions_data:
+            st.markdown(f"**{model_data['Model']}**")
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                fig_scatter = go.Figure()
+                
+                fig_scatter.add_trace(go.Scatter(
+                    x=model_data['Actual'],
+                    y=model_data['Predicted'],
+                    mode='markers',
+                    name=model_data['Model'],
+                    marker=dict(size=8, opacity=0.7),
+                    hovertemplate='Actual: %{x:.4f}<br>Predicted: %{y:.4f}'
+                ))
+                
+                # Add perfect prediction line
+                min_val = min(model_data['Actual'])
+                max_val = max(model_data['Actual'])
+                fig_scatter.add_trace(go.Scatter(
+                    x=[min_val, max_val],
+                    y=[min_val, max_val],
+                    mode='lines',
+                    name='Perfect Prediction',
+                    line=dict(color='red', dash='dash'),
+                    hovertemplate=None
+                ))
+                
+                fig_scatter.update_layout(
+                    title=f'Actual vs Predicted Values ({model_data["Model"]})',
+                    xaxis_title='Actual Price',
+                    yaxis_title='Predicted Price',
+                    showlegend=True,
+                    height=400
+                )
+                st.plotly_chart(fig_scatter, use_container_width=True)
+            
+            with col2:
+                metrics = eval_metrics[model_data['Model']]
+                st.metric("R² Score", f"{metrics['R2']:.4f}")
+                st.metric("RMSE", f"{metrics['RMSE']:.4f}")
+                st.metric("MAE", f"{metrics['MAE']:.4f}")
+                st.download_button(
+                    f"Download {model_data['Model']} Data",
+                    pd.DataFrame(model_data).to_csv().encode('utf-8'),
+                    file_name=f'{coin_name}_{model_data["Model"]}_prediction_data.csv',
+                    mime='text/csv',
+                    key=f"dl_pred_data_{coin_index}_{model_data['Model']}"
+                )
         # Show retrained notice if applicable
         if retrained:
             st.info("ℹ️ Note: Models were retrained with current environment settings")
