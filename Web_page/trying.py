@@ -2940,6 +2940,9 @@ header {
 def main():
     initialize_session_state()
     check_versions()
+    # Initialize the data (call this at app startup)
+    combined_data = load_or_update_crypto_data()
+
     
     st.sidebar.title("Navigation")
     page = st.sidebar.radio("Go to", ["Home", "About Us", "Dataset", "Coin Correlation", 
@@ -2950,10 +2953,6 @@ def main():
     elif page == "About Us":
         about_us()
     elif page == "Dataset":
-        
-        # Initialize the data (call this at app startup)
-        combined_data = load_or_update_crypto_data()
-
         dataset_section()
 
         # Add a refresh button in your UI
