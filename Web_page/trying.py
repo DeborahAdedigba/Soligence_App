@@ -2931,7 +2931,7 @@ def main():
     elif page == "About Us":
         about_us()
     elif page == "Dataset":
-        crypto_data = data_fetcher_section()
+        # crypto_data = data_fetcher_section()
         dataset_section(crypto_data)
     elif page == "Coin Correlation":
         analyze_coin_correlation()
