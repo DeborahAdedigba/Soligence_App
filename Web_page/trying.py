@@ -521,40 +521,116 @@ def display_training_progress():
 
 
 # Fetch cryptocurrency data
-def get_crypto_data(ticker, start_date, end_date):
-    try:
-        crypto = yf.Ticker(ticker)
-        data = crypto.history(start=start_date, end=end_date)
-        return data
-    except Exception as e:
-        st.error(f"Error fetching data for {ticker}: {e}")
-        return None
+# def get_crypto_data(ticker, start_date, end_date):
+#     try:
+#         crypto = yf.Ticker(ticker)
+#         data = crypto.history(start=start_date, end=end_date)
+#         return data
+#     except Exception as e:
+#         st.error(f"Error fetching data for {ticker}: {e}")
+#         return None
 
-# Define ticker symbols and date range
-ticker_symbols = ['BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 'XRP-GBP', 
-                 'USDC-GBP', 'ADA-GBP', 'DOGE-GBP', 'XMR-GBP', 'TRX-GBP', 'DOT-GBP', 
-                 'LINK-GBP', 'MATIC-GBP', 'DAI-GBP', 'HBAR-GBP', 'ICP-GBP', 'LTC-GBP', 
-                 'BCH-GBP', 'ATOM-GBP', 'ETC-GBP', 'XLM-GBP', 'MKR-GBP', 'TUSD-GBP', 
-                 'HEX-GBP', 'XCH-GBP', 'FTM-GBP', 'AXS-GBP', 'NEO-GBP', 'SAND-GBP']
+# # Define ticker symbols and date range
+# ticker_symbols = ['BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 'XRP-GBP', 
+#                  'USDC-GBP', 'ADA-GBP', 'DOGE-GBP', 'XMR-GBP', 'TRX-GBP', 'DOT-GBP', 
+#                  'LINK-GBP', 'MATIC-GBP', 'DAI-GBP', 'HBAR-GBP', 'ICP-GBP', 'LTC-GBP', 
+#                  'BCH-GBP', 'ATOM-GBP', 'ETC-GBP', 'XLM-GBP', 'MKR-GBP', 'TUSD-GBP', 
+#                  'HEX-GBP', 'XCH-GBP', 'FTM-GBP', 'AXS-GBP', 'NEO-GBP', 'SAND-GBP']
 
-end_date = datetime.now()
-start_date = end_date - timedelta(days=4*365)  
+# end_date = datetime.now()
+# start_date = end_date - timedelta(days=4*365)  
 
-# Try to load existing data or fetch fresh data
-data_file = "Cleaned_combined_crypto_data.csv"
-if os.path.exists(data_file):
-    combined_data = pd.read_csv(data_file, index_col='Date')
-else:
-    combined_data = pd.DataFrame()
-    for ticker in ticker_symbols:
-        data = get_crypto_data(ticker, start_date, end_date)
-        if data is not None:
-            data['Crypto'] = ticker
-            combined_data = pd.concat([combined_data, data], axis=0)
+# # Try to load existing data or fetch fresh data
+# data_file = "Cleaned_combined_crypto_data.csv"
+# if os.path.exists(data_file):
+#     combined_data = pd.read_csv(data_file, index_col='Date')
+# else:
+#     combined_data = pd.DataFrame()
+#     for ticker in ticker_symbols:
+#         data = get_crypto_data(ticker, start_date, end_date)
+#         if data is not None:
+#             data['Crypto'] = ticker
+#             combined_data = pd.concat([combined_data, data], axis=0)
     
-    if not combined_data.empty:
-        combined_data.drop(['Dividends', 'Stock Splits'], axis=1, inplace=True)
-        combined_data.to_csv(data_file)
+#     if not combined_data.empty:
+#         combined_data.drop(['Dividends', 'Stock Splits'], axis=1, inplace=True)
+#         combined_data.to_csv(data_file)
+
+
+# List of reliable cryptocurrency tickers (GBP pairs)
+CRYPTO_TICKERS = [
+    'BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 
+    'XRP-GBP', 'USDC-GBP', 'ADA-GBP', 'DOGE-GBP', 'DOT-GBP',
+    'MATIC-GBP', 'DAI-GBP', 'LTC-GBP', 'SHIB-GBP', 'TRX-GBP',
+    'AVAX-GBP', 'LINK-GBP', 'ATOM-GBP', 'XLM-GBP', 'UNI-GBP',
+    'BCH-GBP', 'ALGO-GBP', 'VET-GBP', 'FIL-GBP', 'THETA-GBP',
+    'XMR-GBP', 'ETC-GBP', 'EOS-GBP', 'AAVE-GBP', 'XTZ-GBP',
+    'SAND-GBP', 'MANA-GBP', 'APE-GBP', 'GALA-GBP', 'CHZ-GBP'
+]
+
+def get_crypto_data(tickers=CRYPTO_TICKERS, force_refresh=False):
+    """
+    Fetch cryptocurrency data with caching functionality.
+    
+    Args:
+        tickers (list): List of ticker symbols
+        force_refresh (bool): Whether to force a fresh data fetch
+    
+    Returns:
+        pd.DataFrame: Combined cryptocurrency data
+    """
+    cache_file = "Cleaned_combined_crypto_data.csv"
+    
+    # Remove cached data if forced
+    if force_refresh and os.path.exists(cache_file):
+        os.remove(cache_file)
+        st.info("Deleted old data cache. Fetching fresh data...")
+    
+    # Try to load cached data if exists
+    if os.path.exists(cache_file) and not force_refresh:
+        try:
+            combined_data = pd.read_csv(cache_file, parse_dates=['Date'], index_col='Date')
+            st.success(f"Loaded cached data up to {combined_data.index[-1].date()}")
+            return combined_data
+        except Exception as e:
+            st.warning(f"Error loading cached data: {e}. Fetching fresh data...")
+    
+    # Fetch fresh data from Yahoo Finance
+    combined_data = pd.DataFrame()
+    
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    for i, ticker in enumerate(tickers):
+        try:
+            status_text.text(f"Fetching {ticker}... ({i+1}/{len(tickers)})")
+            progress_bar.progress((i+1)/len(tickers))
+            
+            crypto = yf.Ticker(ticker)
+            data = crypto.history(period="max")
+            
+            if not data.empty:
+                data['Crypto'] = ticker  # Changed from 'Ticker' to 'Crypto' for backward compatibility
+                combined_data = pd.concat([combined_data, data], axis=0)
+                latest_date = data.index[-1].strftime('%Y-%m-%d')
+                st.write(f"✅ {ticker} (up to {latest_date})")
+            else:
+                st.warning(f"No data for {ticker}")
+        except Exception as e:
+            st.error(f"Error fetching {ticker}: {str(e)}")
+    
+    if combined_data.empty:
+        st.error("No data was fetched. Check your internet connection or ticker symbols.")
+        return pd.DataFrame()
+    
+    # Clean and save data (maintaining old format for compatibility)
+    combined_data = combined_data.drop(['Dividends', 'Stock Splits'], axis=1, errors='ignore')
+    combined_data.to_csv(cache_file)
+    st.success(f"Saved new data with {len(combined_data):,} rows (up to {combined_data.index[-1].date()})")
+    
+    return combined_data
+
+
 
 # Generate selected coins through PCA and clustering
 def generate_selected_data(data):
