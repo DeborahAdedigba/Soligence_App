@@ -1876,11 +1876,11 @@ def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
                 'RMSE': '{:.4f}',
                 'MAPE': '{:.2f}%',
                 'R2': '{:.4f}'
-            }).applymap(lambda x: 'font-weight: bold', subset=['R2'])
+            }).map(lambda x: 'font-weight: bold', subset=['R2'])
             
             # Apply color to each metric column
             for metric in metrics_df.columns:
-                styled_metrics = styled_metrics.applymap(
+                styled_metrics = styled_metrics.map(
                     lambda x, m=metric: color_metric(x, m), 
                     subset=[metric]
                 )
