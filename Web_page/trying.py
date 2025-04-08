@@ -2901,50 +2901,40 @@ def main():
         elif prediction_option == "Training":
             st.header("Model Training")
             
-            # Initialize session state variables if they don't exist
-            if 'training_started' not in st.session_state:
-                st.session_state.training_started = False
-            if 'models_trained' not in st.session_state:
-                st.session_state.models_trained = False
-            if 'training_progress' not in st.session_state:
-                st.session_state.training_progress = 0
-            if 'total_models' not in st.session_state:
-                st.session_state.total_models = 4  
-
-            # Check if training is complete
-            if st.session_state.models_trained:
-                st.success("All models trained successfully!")
-                if st.button("Reset Training Status"):
-                    st.session_state.training_started = False
-                    st.session_state.models_trained = False
-                    st.session_state.training_progress = 0
-                    st.rerun()
+            # Set up session state for training
+            initialize_session_state()
+            setup_logging()
             
-            # Check if training is in progress
-            elif st.session_state.training_started:
-                # Show progress bar
-                progress = st.session_state.training_progress / st.session_state.total_models
-                st.progress(progress)
-                
-                if st.session_state.training_progress >= st.session_state.total_models:
-                    st.session_state.models_trained = True
-                    st.session_state.training_started = False
-                    st.rerun()
-                else:
-                    st.warning(f"Training in progress... ({st.session_state.training_progress}/{st.session_state.total_models} models completed)")
-                    if st.button("Refresh Status"):
-                        st.rerun()
+            st.subheader("Train Models for Cryptocurrency Prediction")
+            st.write("""This will train multiple machine learning models for each selected cryptocurrency. 
+                    The process includes Gradient Boosting, SVR, XGBoost, and LSTM neural networks.""")
             
-            # Initial state - no training started yet
+            # Display current training status and controls
+            if st.session_state.get('models_trained', False):
+                st.success("✅ All models have been successfully trained!")
+                if st.button("Train Again"):
+                    initialize_session_state()
+                    st.rerun()
+                    
+            elif st.session_state.training_state.get('started', False):
+                # Show training in progress UI
+                display_training_progress()
+                    
             else:
-                if st.button("Train All Models"):
-                    st.session_state.training_started = True
-                    st.session_state.training_progress = 0
+                # Initial state - show training options
+                with st.expander("Advanced Training Options", expanded=False):
+                    st.info("Default settings will train 4 model types for up to 4 cryptocurrencies.")
+                    st.write("Training all models may take several minutes, especially for LSTM networks.")
+                
+                if st.button("🚀 Start Training Models"):
+                    # Start background thread for training
                     thread = threading.Thread(
                         target=train_all_models_background,
-                        args=(selected_data,)
+                        args=(selected_data,),
+                        daemon=True
                     )
                     thread.start()
+                    st.session_state.training_thread = thread
                     st.rerun()
         
         elif prediction_option == "Training Model Metrics":
