@@ -54,6 +54,7 @@ memory = Memory("cached_models", verbose=0)
 
 
 
+combined_data = load_crypto_data(show_messages=False)
 
 
 
@@ -525,87 +526,94 @@ CRYPTO_TICKERS = [
     'SAND-GBP', 'MANA-GBP', 'APE-GBP', 'GALA-GBP', 'CHZ-GBP'
 ]
 
-# Set date range
-end_date = datetime.now()
-start_date = end_date - timedelta(days=4*365)  # 4 years of data
-
-# Define cache file path
-data_file = "Cleaned_combined_crypto_data.csv"
-
-# Check if we should use cached data
-use_cached = False
-missing_tickers = []
-
-if os.path.exists(data_file):
-    # Check how old the file is
-    file_mtime = datetime.fromtimestamp(os.path.getmtime(data_file))
-    days_old = (datetime.now() - file_mtime).days
+# Function to load data - but only display messages in the dataset section
+def load_crypto_data(show_messages=False):
+    global combined_data
     
-    # Load the cached data to check what tickers it contains
-    temp_data = pd.read_csv(data_file, parse_dates=['Date'], index_col='Date')
+    # Set date range
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=4*365)  # 4 years of data
     
-    # Get unique tickers in the dataset
-    if 'Crypto' in temp_data.columns:
-        cached_tickers = temp_data['Crypto'].unique().tolist()
-    else:
-        cached_tickers = []
+    # Define cache file path
+    data_file = "Cleaned_combined_crypto_data.csv"
     
-    # Check if all required tickers are in the cache
-    missing_tickers = [t for t in CRYPTO_TICKERS if t not in cached_tickers]
+    # Check if we should use cached data
+    use_cached = False
+    missing_tickers = []
     
-    # Decide whether to use cache based on age and completeness
-    if days_old < 1 and not missing_tickers:
-        combined_data = temp_data
-        st.success(f"Loaded complete cached data from {file_mtime.strftime('%Y-%m-%d')}")
-        use_cached = True
-    elif days_old >= 1:
-        st.info(f"Cached data is {days_old} days old. Refreshing all data...")
-        combined_data = None
-    elif missing_tickers:
-        st.info(f"Cached data is missing {len(missing_tickers)} cryptocurrencies. Refreshing all data...")
-        combined_data = None
-else:
-    st.info("No cached data found. Fetching fresh data...")
-    combined_data = None
-
-# If we need to fetch fresh data
-if not use_cached:
-    # Setup progress tracking
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    # Initialize empty DataFrame
-    combined_data = pd.DataFrame()
-    
-    # Fetch data for each ticker
-    for i, ticker in enumerate(CRYPTO_TICKERS):
-        status_text.text(f"Fetching {ticker}... ({i+1}/{len(CRYPTO_TICKERS)})")
-        progress_bar.progress((i+1)/len(CRYPTO_TICKERS))
-        
-        data = get_crypto_data(ticker, start_date, end_date)
-        if data is not None and not data.empty:
-            data['Crypto'] = ticker
-            combined_data = pd.concat([combined_data, data], axis=0)
-            latest_date = data.index[-1].strftime('%Y-%m-%d')
-            st.write(f"✅ {ticker} (up to {latest_date})")
-        else:
-            st.warning(f"No data for {ticker}")
-    
-    # Clean the data if we have any
-    if not combined_data.empty:
-        if 'Dividends' in combined_data.columns:
-            combined_data.drop(['Dividends', 'Stock Splits'], axis=1, inplace=True)
-        combined_data.to_csv(data_file)
-        st.success(f"Saved new data with {len(combined_data):,} rows")
-    else:
-        st.error("No data was fetched. Check your internet connection or ticker symbols.")
-
-# Add a refresh button
-if st.button("Force Refresh Data"):
     if os.path.exists(data_file):
-        os.remove(data_file)
-    st.experimental_rerun()  # Restart the script to force a fresh data fetch
-
+        # Check how old the file is
+        file_mtime = datetime.fromtimestamp(os.path.getmtime(data_file))
+        days_old = (datetime.now() - file_mtime).days
+        
+        # Load the cached data to check what tickers it contains
+        temp_data = pd.read_csv(data_file, parse_dates=['Date'], index_col='Date')
+        
+        # Get unique tickers in the dataset
+        if 'Crypto' in temp_data.columns:
+            cached_tickers = temp_data['Crypto'].unique().tolist()
+        else:
+            cached_tickers = []
+        
+        # Check if all required tickers are in the cache
+        missing_tickers = [t for t in CRYPTO_TICKERS if t not in cached_tickers]
+        
+        # Decide whether to use cache based on age and completeness
+        if days_old < 1 and not missing_tickers:
+            combined_data = temp_data
+            if show_messages:
+                st.success(f"Loaded complete cached data from {file_mtime.strftime('%Y-%m-%d')}")
+            use_cached = True
+        elif days_old >= 1:
+            if show_messages:
+                st.info(f"Cached data is {days_old} days old. Refreshing all data...")
+            combined_data = None
+        elif missing_tickers:
+            if show_messages:
+                st.info(f"Cached data is missing {len(missing_tickers)} cryptocurrencies. Refreshing all data...")
+            combined_data = None
+    else:
+        if show_messages:
+            st.info("No cached data found. Fetching fresh data...")
+        combined_data = None
+    
+    # If we need to fetch fresh data
+    if not use_cached:
+        # Setup progress tracking
+        if show_messages:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+        
+        # Initialize empty DataFrame
+        combined_data = pd.DataFrame()
+        
+        # Fetch data for each ticker
+        for i, ticker in enumerate(CRYPTO_TICKERS):
+            if show_messages:
+                status_text.text(f"Fetching {ticker}... ({i+1}/{len(CRYPTO_TICKERS)})")
+                progress_bar.progress((i+1)/len(CRYPTO_TICKERS))
+            
+            data = get_crypto_data(ticker, start_date, end_date)
+            if data is not None and not data.empty:
+                data['Crypto'] = ticker
+                combined_data = pd.concat([combined_data, data], axis=0)
+                if show_messages:
+                    latest_date = data.index[-1].strftime('%Y-%m-%d')
+                    st.write(f"✅ {ticker} (up to {latest_date})")
+            elif show_messages:
+                st.warning(f"No data for {ticker}")
+        
+        # Clean the data if we have any
+        if not combined_data.empty:
+            if 'Dividends' in combined_data.columns:
+                combined_data.drop(['Dividends', 'Stock Splits'], axis=1, inplace=True)
+            combined_data.to_csv(data_file)
+            if show_messages:
+                st.success(f"Saved new data with {len(combined_data):,} rows")
+        elif show_messages:
+            st.error("No data was fetched. Check your internet connection or ticker symbols.")
+    
+    return combined_data
 
 # Generate selected coins through PCA and clustering
 def generate_selected_data(data):
@@ -1052,12 +1060,30 @@ def about_us():
         </div>
         """, unsafe_allow_html=True)
 
+
 def dataset_section():
-    """Display and interact with cryptocurrency dataset with improved UI/UX."""
+    global combined_data
     
-    # Header section with more context
-    st.header("📊 Cryptocurrency Market Dataset")
+    st.title("Cryptocurrency Dataset")
     st.markdown("Explore historical data for 30 major cryptocurrencies.")
+    
+    # Add refresh button in dataset section
+    if st.button("Force Refresh Data"):
+        data_file = "Cleaned_combined_crypto_data.csv"
+        if os.path.exists(data_file):
+            os.remove(data_file)
+        # Also remove selected_data_file to regenerate it
+        selected_data_file = 'Selected_coins.csv'
+        if os.path.exists(selected_data_file):
+            os.remove(selected_data_file)
+        # Reload data with messages shown
+        combined_data = load_crypto_data(show_messages=True)
+    else:
+        # Just show the data info when not refreshing
+        data_file = "Cleaned_combined_crypto_data.csv"
+        if os.path.exists(data_file):
+            file_mtime = datetime.fromtimestamp(os.path.getmtime(data_file))
+            st.info(f"Using data cached from {file_mtime.strftime('%Y-%m-%d at %H:%M:%S')}")
     
     if combined_data.empty:
         st.error("⚠️ No data available. Please check your data source or connection.")
