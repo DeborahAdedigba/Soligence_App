@@ -418,11 +418,18 @@ def train_lstm(X_train, y_train):
 def train_all_models_background(selected_data):
     """Train models for all coins in a background thread with proper progress tracking"""
     try:
-        # Initialize progress tracking
-        with threading.Lock():
-            st.session_state.training_state['progress'] = {}
-            st.session_state.training_state['overall'] = 0
-            st.session_state.training_state['error'] = None
+        # Ensure session state is initialized
+        if 'training_state' not in st.session_state:
+            with threading.Lock():
+                st.session_state.training_state = {
+                    'started': True,
+                    'completed': False,
+                    'progress': {},
+                    'overall': 0,
+                    'total_models': min(4, selected_data.shape[1]) * 4,
+                    'error': None,
+                    'last_update': time.time()
+                }
         
         # Train models for each coin
         for coin_idx in range(min(4, selected_data.shape[1])):
@@ -430,6 +437,9 @@ def train_all_models_background(selected_data):
             
             # Initialize coin progress
             with threading.Lock():
+                if 'training_state' not in st.session_state:
+                    st.session_state.training_state = {}
+                st.session_state.training_state['progress'] = st.session_state.training_state.get('progress', {})
                 st.session_state.training_state['progress'][coin_name] = {
                     'status': 'Starting',
                     'current_model': '',
@@ -437,28 +447,33 @@ def train_all_models_background(selected_data):
                     'progress': 0
                 }
             
-            # Train models for this coin
+            # Train models for this coin (your existing training code)
             train_models_for_coin(selected_data, coin_idx)
             
             # Update progress after each coin
             with threading.Lock():
-                st.session_state.training_state['overall'] += 4
-                st.session_state.training_state['progress'][coin_name] = {
-                    'status': 'Completed',
-                    'current_model': '',
-                    'message': 'All models trained',
-                    'progress': 100
-                }
+                if 'training_state' in st.session_state:
+                    st.session_state.training_state['overall'] = st.session_state.training_state.get('overall', 0) + 4
+                    st.session_state.training_state['progress'][coin_name] = {
+                        'status': 'Completed',
+                        'current_model': '',
+                        'message': 'All models trained',
+                        'progress': 100
+                    }
+                    st.session_state.training_state['last_update'] = time.time()
         
         # Mark as completed
         with threading.Lock():
-            st.session_state.training_state['completed'] = True
-            st.session_state.training_state['started'] = False
+            if 'training_state' in st.session_state:
+                st.session_state.training_state['completed'] = True
+                st.session_state.training_state['started'] = False
     
     except Exception as e:
         error_msg = f"Training error: {str(e)}"
         logging.error(error_msg, exc_info=True)
         with threading.Lock():
+            if 'training_state' not in st.session_state:
+                st.session_state.training_state = {}
             st.session_state.training_state['error'] = error_msg
             st.session_state.training_state['started'] = False
 
@@ -2901,23 +2916,20 @@ def main():
         elif prediction_option == "Training":
             st.header("Model Training")
             
-            # Initialize session state with proper structure
-            def initialize_training_state():
-                if 'training_state' not in st.session_state:
-                    st.session_state.training_state = {
-                        'started': False,
-                        'completed': False,
-                        'progress': {},
-                        'overall': 0,
-                        'total_models': min(4, selected_data.shape[1]) * 4 if 'selected_data' in locals() else 4,
-                        'error': None,
-                        'last_update': time.time()
-                    }
-            
-            initialize_training_state()
+            # Initialize training state with proper structure
+            if 'training_state' not in st.session_state:
+                st.session_state.training_state = {
+                    'started': False,
+                    'completed': False,
+                    'progress': {},
+                    'overall': 0,
+                    'total_models': min(4, selected_data.shape[1]) * 4 if 'selected_data' in locals() else 4,
+                    'error': None,
+                    'last_update': time.time()
+                }
             
             # Check if training is complete
-            if st.session_state.training_state['completed']:
+            if st.session_state.training_state.get('completed', False):
                 st.success("✅ All models trained successfully!")
                 if st.button("Reset Training"):
                     st.session_state.training_state = {
@@ -2932,7 +2944,7 @@ def main():
                     st.rerun()
             
             # Check for errors
-            elif st.session_state.training_state['error']:
+            elif st.session_state.training_state.get('error'):
                 st.error(f"❌ Training failed: {st.session_state.training_state['error']}")
                 if st.button("Retry Training"):
                     st.session_state.training_state['error'] = None
@@ -2940,43 +2952,51 @@ def main():
                     st.rerun()
             
             # Check if training is in progress
-            elif st.session_state.training_state['started']:
+            elif st.session_state.training_state.get('started', False):
                 st.warning("🔄 Training in progress...")
                 
                 # Display overall progress
-                progress_value = st.session_state.training_state['overall'] / st.session_state.training_state['total_models']
-                st.progress(progress_value)
-                st.write(f"Overall progress: {st.session_state.training_state['overall']}/{st.session_state.training_state['total_models']} models completed")
+                if 'overall' in st.session_state.training_state and 'total_models' in st.session_state.training_state:
+                    progress_value = st.session_state.training_state['overall'] / st.session_state.training_state['total_models']
+                    st.progress(min(1.0, max(0.0, progress_value)))
+                    st.write(f"Overall progress: {st.session_state.training_state['overall']}/{st.session_state.training_state['total_models']} models completed")
                 
                 # Display per-coin progress
-                for coin_name, progress in st.session_state.training_state['progress'].items():
-                    with st.expander(f"Progress for {coin_name}"):
-                        col1, col2 = st.columns([1, 4])
-                        with col1:
-                            status_icon = "✅" if progress['status'] == 'Completed' else "❌" if progress['status'].startswith('Failed') else "🔄"
-                            st.write(status_icon)
-                        
-                        with col2:
-                            st.write(f"**Status:** {progress['status']}")
-                            if progress['current_model']:
-                                st.write(f"**Current Model:** {progress['current_model']}")
-                            if progress['message']:
-                                st.write(progress['message'])
-                            if progress['status'] not in ['Completed', 'Failed']:
-                                st.progress(progress['progress'] / 100)
+                if 'progress' in st.session_state.training_state:
+                    for coin_name, progress in st.session_state.training_state['progress'].items():
+                        with st.expander(f"Progress for {coin_name}"):
+                            col1, col2 = st.columns([1, 4])
+                            with col1:
+                                status_icon = "✅" if progress.get('status') == 'Completed' else "❌" if progress.get('status', '').startswith('Failed') else "🔄"
+                                st.write(status_icon)
+                            
+                            with col2:
+                                st.write(f"**Status:** {progress.get('status', 'Unknown')}")
+                                if progress.get('current_model'):
+                                    st.write(f"**Current Model:** {progress['current_model']}")
+                                if progress.get('message'):
+                                    st.write(progress['message'])
+                                if progress.get('status') not in ['Completed', 'Failed']:
+                                    st.progress(min(1.0, max(0.0, progress.get('progress', 0) / 100)))
                 
                 # Auto-refresh logic
-                if not st.session_state.training_state['completed']:
+                if not st.session_state.training_state.get('completed', False):
                     time.sleep(2)  # Refresh every 2 seconds
                     st.rerun()
             
             # Initial state - ready to start training
             else:
                 if st.button("🚀 Train All Models"):
-                    st.session_state.training_state['started'] = True
-                    st.session_state.training_state['completed'] = False
-                    st.session_state.training_state['overall'] = 0
-                    st.session_state.training_state['error'] = None
+                    # Initialize all state before starting thread
+                    st.session_state.training_state = {
+                        'started': True,
+                        'completed': False,
+                        'progress': {},
+                        'overall': 0,
+                        'total_models': min(4, selected_data.shape[1]) * 4,
+                        'error': None,
+                        'last_update': time.time()
+                    }
                     
                     # Start background thread
                     thread = threading.Thread(
@@ -2985,7 +3005,6 @@ def main():
                         daemon=True
                     )
                     thread.start()
-                    
                     st.rerun()
         
         elif prediction_option == "Training Model Metrics":
