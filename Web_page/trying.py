@@ -54,7 +54,6 @@ memory = Memory("cached_models", verbose=0)
 
 
 
-combined_data = load_crypto_data(show_messages=False)
 
 
 
@@ -614,6 +613,11 @@ def load_crypto_data(show_messages=False):
             st.error("No data was fetched. Check your internet connection or ticker symbols.")
     
     return combined_data
+
+
+
+combined_data = load_crypto_data(show_messages=False)
+
 
 # Generate selected coins through PCA and clustering
 def generate_selected_data(data):
