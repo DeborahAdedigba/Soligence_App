@@ -1101,52 +1101,7 @@ def dataset_section(combined_data):
                 value=1
             )
     
-        # Apply filters and sorting
-        filtered_data = combined_data.copy()
-        
-        if selected_crypto != 'All':
-            filtered_data = filtered_data[filtered_data['Ticker'] == selected_crypto]
-        
-        if sort_column:
-            filtered_data = filtered_data.sort_values(by=sort_column, ascending=ascending)
-        
-        # Pagination logic
-        start_idx = (page_number - 1) * page_size
-        end_idx = start_idx + page_size
-        paginated_data = filtered_data.iloc[start_idx:end_idx]
-        
-        # Display dataset information
-        st.subheader("📈 Data Overview")
-        st.info(f"ℹ️ Showing {len(paginated_data)} of {len(filtered_data)} records")
-        
-        # Enhanced dataframe display
-        st.dataframe(
-            paginated_data,
-            height=min(600, (len(paginated_data) + 1) * 35),
-            use_container_width=True
-        )
-        
-        # Alternative views
-        view_option = st.radio(
-            "View as:",
-            ["Interactive Table", "Static Table", "Raw Data"],
-            horizontal=True
-        )
-        
-        if view_option == "Static Table":
-            st.table(paginated_data)
-        elif view_option == "Raw Data":
-            st.code(paginated_data.to_string())
-        
-        # Download option
-        csv = filtered_data.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Download Current View as CSV",
-            data=csv,
-            file_name=f"crypto_data_{selected_crypto.lower() or 'all'}.csv",
-            mime='text/csv',
-            help="Download the filtered dataset as a CSV file"
-        )
+    
 
 def plot_average_price_trend(data, selected_coin, interval):
     selected_coin_data = data[data['Crypto'] == selected_coin]
@@ -2931,6 +2886,52 @@ def main():
     elif page == "About Us":
         about_us()
     elif page == "Dataset":
+        # Apply filters and sorting
+        filtered_data = combined_data.copy()
+        
+        if selected_crypto != 'All':
+            filtered_data = filtered_data[filtered_data['Ticker'] == selected_crypto]
+        
+        if sort_column:
+            filtered_data = filtered_data.sort_values(by=sort_column, ascending=ascending)
+        
+        # Pagination logic
+        start_idx = (page_number - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_data = filtered_data.iloc[start_idx:end_idx]
+        
+        # Display dataset information
+        st.subheader("📈 Data Overview")
+        st.info(f"ℹ️ Showing {len(paginated_data)} of {len(filtered_data)} records")
+        
+        # Enhanced dataframe display
+        st.dataframe(
+            paginated_data,
+            height=min(600, (len(paginated_data) + 1) * 35),
+            use_container_width=True
+        )
+        
+        # Alternative views
+        view_option = st.radio(
+            "View as:",
+            ["Interactive Table", "Static Table", "Raw Data"],
+            horizontal=True
+        )
+        
+        if view_option == "Static Table":
+            st.table(paginated_data)
+        elif view_option == "Raw Data":
+            st.code(paginated_data.to_string())
+        
+        # Download option
+        csv = filtered_data.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Current View as CSV",
+            data=csv,
+            file_name=f"crypto_data_{selected_crypto.lower() or 'all'}.csv",
+            mime='text/csv',
+            help="Download the filtered dataset as a CSV file"
+        )
         crypto_data = data_fetcher_section()
         dataset_section(crypto_data)
     elif page == "Coin Correlation":
