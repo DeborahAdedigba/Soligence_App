@@ -2947,7 +2947,7 @@ def main():
         elif prediction_option == "Training Model Metrics":
             st.header("Selected Model Metrics")
             coins = st.multiselect("Select coins:", selected_data.columns)
-            
+            model = st.selectbox("Select model:", ['all', 'Gradient Boosting', 'SVR', 'XGBoost', 'LSTM'])
             
             for coin in coins:
                 coin_index = selected_data.columns.get_loc(coin)
