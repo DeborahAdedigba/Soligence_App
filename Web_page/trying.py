@@ -606,7 +606,7 @@ if st.button("Force Refresh Data"):
         os.remove(data_file)
     st.experimental_rerun()  # Restart the script to force a fresh data fetch
 
-    
+
 # Generate selected coins through PCA and clustering
 def generate_selected_data(data):
     pivoted_data = data.pivot(columns='Crypto', values='Close')
@@ -636,9 +636,26 @@ def generate_selected_data(data):
     selected_data = pivoted_data[representative_coins.index]
     return selected_data
 
+# This should be placed after combined_data is defined
 selected_data_file = 'Selected_coins.csv'
 if os.path.exists(selected_data_file):
-    selected_data = pd.read_csv(selected_data_file, index_col='Date')
+    # Check if selected_data_file is older than combined_data file
+    data_file = "Cleaned_combined_crypto_data.csv"
+    if os.path.exists(data_file):
+        selected_mtime = os.path.getmtime(selected_data_file)
+        combined_mtime = os.path.getmtime(data_file)
+        
+        if selected_mtime < combined_mtime:
+            # If selected data is older than combined data, regenerate it
+            if not combined_data.empty:
+                selected_data = generate_selected_data(combined_data)
+                selected_data.to_csv(selected_data_file)
+            else:
+                selected_data = pd.read_csv(selected_data_file, index_col='Date')
+        else:
+            selected_data = pd.read_csv(selected_data_file, index_col='Date')
+    else:
+        selected_data = pd.read_csv(selected_data_file, index_col='Date')
 else:
     if not combined_data.empty:
         selected_data = generate_selected_data(combined_data)
@@ -650,7 +667,6 @@ else:
 if not os.path.exists("trained_models") and not selected_data.empty:
     st.info("First-time setup: Training initial models...")
     train_all_models_background(selected_data)
-
 # UI Functions
 def home_section():
     """Enhanced home section with modern UI and improved content structure"""
