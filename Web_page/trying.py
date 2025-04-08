@@ -524,21 +524,25 @@ def display_training_progress():
 def get_crypto_data(ticker, start_date, end_date):
     try:
         crypto = yf.Ticker(ticker)
-        data = crypto.history(start=start_date, end=end_date)
+        # Try to get daily data first
+        data = crypto.history(start=start_date, end=end_date + timedelta(days=1), interval="1d")
+        
+        # If no recent data, try to get intraday data
+        if data.empty or data.index[-1].date() < (end_date - timedelta(days=1)).date():
+            intraday = crypto.history(period="7d", interval="1h")
+            if not intraday.empty:
+                data = pd.concat([data, intraday])
+        
         return data
     except Exception as e:
         st.error(f"Error fetching data for {ticker}: {e}")
         return None
 
-# Define ticker symbols and date range
-ticker_symbols = ['BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 'XRP-GBP', 
-                 'USDC-GBP', 'ADA-GBP', 'DOGE-GBP', 'XMR-GBP', 'TRX-GBP', 'DOT-GBP', 
-                 'LINK-GBP', 'MATIC-GBP', 'DAI-GBP', 'HBAR-GBP', 'ICP-GBP', 'LTC-GBP', 
-                 'BCH-GBP', 'ATOM-GBP', 'ETC-GBP', 'XLM-GBP', 'MKR-GBP', 'TUSD-GBP', 
-                 'HEX-GBP', 'XCH-GBP', 'FTM-GBP', 'AXS-GBP', 'NEO-GBP', 'SAND-GBP']
 
 end_date = datetime.now()
-start_date = end_date - timedelta(days=4*365)  
+start_date = end_date - timedelta(days=4*365)
+
+
 
 # Try to load existing data or fetch fresh data
 data_file = "Cleaned_combined_crypto_data.csv"
