@@ -557,73 +557,82 @@ def display_training_progress():
 #         combined_data.to_csv(data_file)
 
 
-def get_crypto_data(ticker, start_date, end_date):
-    """Fetch data for a single cryptocurrency"""
-    try:
-        crypto = yf.Ticker(ticker)
-        data = crypto.history(start=start_date, end=end_date)
-        return data
-    except Exception as e:
-        st.error(f"Error fetching data for {ticker}: {e}")
-        return None
-
-def load_or_update_crypto_data(force_refresh=False):
-    """Main function to load cached data or fetch fresh data"""
-    global combined_data
-    
-    ticker_symbols = ['BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 'XRP-GBP', 
-                     'USDC-GBP', 'ADA-GBP', 'DOGE-GBP', 'XMR-GBP', 'TRX-GBP', 'DOT-GBP',
-                     'LINK-GBP', 'MATIC-GBP', 'DAI-GBP', 'HBAR-GBP', 'ICP-GBP', 'LTC-GBP',
-                     'BCH-GBP', 'ATOM-GBP', 'ETC-GBP', 'XLM-GBP', 'MKR-GBP', 'TUSD-GBP',
-                     'HEX-GBP', 'XCH-GBP', 'FTM-GBP', 'AXS-GBP', 'NEO-GBP', 'SAND-GBP']
-    
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=4*365)
+# Fetch cryptocurrency data
+def get_crypto_data(ticker_symbols, force_refresh=False):
+    """
+    Fetch cryptocurrency data from Yahoo Finance for multiple tickers.
+    Can use cached data or fetch fresh data based on parameters.
+    """
+    # Define cache file path
     data_file = "Cleaned_combined_crypto_data.csv"
     
-    # Use cached data if available and not forcing refresh
-    if not force_refresh and os.path.exists(data_file):
-        try:
-            combined_data = pd.read_csv(data_file, index_col='Date', parse_dates=True)
-            st.success("Loaded cached data")
-            return combined_data
-        except Exception as e:
-            st.warning(f"Error loading cached data: {e}. Fetching fresh data...")
+    # Remove cached data if forced
+    if force_refresh and os.path.exists(data_file):
+        os.remove(data_file)
+        st.info("Deleted old data cache. Fetching fresh data...")
     
-    # Fetch fresh data
+    # Try to load existing data if exists and not forcing refresh
+    if os.path.exists(data_file) and not force_refresh:
+        combined_data = pd.read_csv(data_file, parse_dates=['Date'], index_col='Date')
+        st.success(f"Loaded cached data up to {combined_data.index[-1].date()}")
+        return combined_data
+    
+    # Setup dates for fresh data
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=4*365)  # 4 years of data
+    
+    # Fetch fresh data from Yahoo Finance
     combined_data = pd.DataFrame()
     
+    # Add progress indicators
     progress_bar = st.progress(0)
     status_text = st.empty()
     
     for i, ticker in enumerate(ticker_symbols):
-        status_text.text(f"Fetching {ticker} ({i+1}/{len(ticker_symbols)})...")
-        progress_bar.progress((i+1)/len(ticker_symbols))
-        
-        data = get_crypto_data(ticker, start_date, end_date)
-        if data is not None:
-            data['Crypto'] = ticker
-            combined_data = pd.concat([combined_data, data])
+        try:
+            status_text.text(f"Fetching {ticker}... ({i+1}/{len(ticker_symbols)})")
+            progress_bar.progress((i+1)/len(ticker_symbols))
+            
+            crypto = yf.Ticker(ticker)
+            data = crypto.history(start=start_date, end=end_date)
+            
+            if not data.empty:
+                data['Crypto'] = ticker
+                combined_data = pd.concat([combined_data, data], axis=0)
+                latest_date = data.index[-1].strftime('%Y-%m-%d')
+                st.write(f"✅ {ticker} (up to {latest_date})")
+            else:
+                st.warning(f"No data for {ticker}")
+                
+        except Exception as e:
+            st.error(f"Error fetching {ticker}: {str(e)}")
     
-    if not combined_data.empty:
-        combined_data = combined_data.drop(['Dividends', 'Stock Splits'], axis=1, errors='ignore')
-        combined_data.to_csv(data_file)
-        st.success("Successfully updated cryptocurrency data!")
-    else:
-        st.error("Failed to fetch data for all cryptocurrencies")
+    if combined_data.empty:
+        st.error("No data was fetched. Check your internet connection or ticker symbols.")
+        return pd.DataFrame()
+    
+    # Clean and save data
+    if 'Dividends' in combined_data.columns:
+        combined_data.drop(['Dividends', 'Stock Splits'], axis=1, inplace=True)
+    
+    combined_data.to_csv(data_file)
+    st.success(f"Saved new data with {len(combined_data):,} rows (up to {combined_data.index[-1].date()})")
     
     return combined_data
 
-# Initialize the data (call this at app startup)
-combined_data = load_or_update_crypto_data()
+# List of reliable cryptocurrency tickers (GBP pairs)
+CRYPTO_TICKERS = [
+    'BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 
+    'XRP-GBP', 'USDC-GBP', 'ADA-GBP', 'DOGE-GBP', 'DOT-GBP',
+    'MATIC-GBP', 'DAI-GBP', 'LTC-GBP', 'SHIB-GBP', 'TRX-GBP',
+    'AVAX-GBP', 'LINK-GBP', 'ATOM-GBP', 'XLM-GBP', 'UNI-GBP',
+    'BCH-GBP', 'ALGO-GBP', 'VET-GBP', 'FIL-GBP', 'THETA-GBP',
+    'XMR-GBP', 'ETC-GBP', 'EOS-GBP', 'AAVE-GBP', 'XTZ-GBP',
+    'SAND-GBP', 'MANA-GBP', 'APE-GBP', 'GALA-GBP', 'CHZ-GBP'
+]
 
-# Add a refresh button in your UI
-if st.button("🔄 Refresh Data"):
-    combined_data = load_or_update_crypto_data(force_refresh=True)
-    st.rerun()
-
-
-
+# Example usage:
+# df = get_crypto_data(CRYPTO_TICKERS, force_refresh=False)
 
 
 # Generate selected coins through PCA and clustering
@@ -2940,9 +2949,6 @@ header {
 def main():
     initialize_session_state()
     check_versions()
-    # Initialize the data (call this at app startup)
-    combined_data = load_or_update_crypto_data()
-
     
     st.sidebar.title("Navigation")
     page = st.sidebar.radio("Go to", ["Home", "About Us", "Dataset", "Coin Correlation", 
@@ -2954,12 +2960,6 @@ def main():
         about_us()
     elif page == "Dataset":
         dataset_section()
-
-        # Add a refresh button in your UI
-        if st.button("🔄 Refresh Data"):
-            combined_data = load_or_update_crypto_data(force_refresh=True)
-            st.rerun()
-       
     elif page == "Coin Correlation":
         analyze_coin_correlation()
     elif page == "Moving Average":
