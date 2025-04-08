@@ -1061,12 +1061,29 @@ def about_us():
         </div>
         """, unsafe_allow_html=True)
 
+
+
 def dataset_section():
     """Display and interact with cryptocurrency dataset with improved UI/UX."""
     
     # Header section with more context
     st.header("📊 Cryptocurrency Market Dataset")
     st.markdown("Explore historical data for 30 major cryptocurrencies.")
+    
+    # Add data refresh controls at the top
+    with st.expander("Data Refresh Options", expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            force_refresh = st.checkbox("Force refresh data", False,
+                                     help="Fetch fresh data from Yahoo Finance")
+        with col2:
+            if st.button("Clear Cache and Refresh"):
+                if os.path.exists("Cleaned_combined_crypto_data.csv"):
+                    os.remove("Cleaned_combined_crypto_data.csv")
+                st.rerun()
+    
+    # Fetch the data
+    combined_data = get_crypto_data(force_refresh=force_refresh)
     
     if combined_data.empty:
         st.error("⚠️ No data available. Please check your data source or connection.")
