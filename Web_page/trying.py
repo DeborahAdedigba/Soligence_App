@@ -567,46 +567,46 @@ def get_crypto_data(ticker, start_date, end_date):
         st.error(f"Error fetching data for {ticker}: {e}")
         return None
 
-def update_crypto_data(force_refresh=False):
-    """Main function to get/update all cryptocurrency data"""
+def load_or_update_crypto_data(force_refresh=False):
+    """Main function to load cached data or fetch fresh data"""
     global combined_data
     
-    # Define ticker symbols and date range
     ticker_symbols = ['BTC-GBP', 'ETH-GBP', 'USDT-GBP', 'BNB-GBP', 'SOL-GBP', 'XRP-GBP', 
-                     'USDC-GBP', 'ADA-GBP', 'DOGE-GBP', 'XMR-GBP', 'TRX-GBP', 'DOT-GBP', 
-                     'LINK-GBP', 'MATIC-GBP', 'DAI-GBP', 'HBAR-GBP', 'ICP-GBP', 'LTC-GBP', 
-                     'BCH-GBP', 'ATOM-GBP', 'ETC-GBP', 'XLM-GBP', 'MKR-GBP', 'TUSD-GBP', 
+                     'USDC-GBP', 'ADA-GBP', 'DOGE-GBP', 'XMR-GBP', 'TRX-GBP', 'DOT-GBP',
+                     'LINK-GBP', 'MATIC-GBP', 'DAI-GBP', 'HBAR-GBP', 'ICP-GBP', 'LTC-GBP',
+                     'BCH-GBP', 'ATOM-GBP', 'ETC-GBP', 'XLM-GBP', 'MKR-GBP', 'TUSD-GBP',
                      'HEX-GBP', 'XCH-GBP', 'FTM-GBP', 'AXS-GBP', 'NEO-GBP', 'SAND-GBP']
     
     end_date = datetime.now()
     start_date = end_date - timedelta(days=4*365)
     data_file = "Cleaned_combined_crypto_data.csv"
     
-    # Check if we should use cached data
+    # Use cached data if available and not forcing refresh
     if not force_refresh and os.path.exists(data_file):
-        cache_date = datetime.fromtimestamp(os.path.getmtime(data_file))
-        # Use cache if it's from today
-        if cache_date.date() == end_date.date():
-            combined_data = pd.read_csv(data_file, index_col='Date')
-            st.success(f"Using cached data from {cache_date.strftime('%Y-%m-%d %H:%M')}")
+        try:
+            combined_data = pd.read_csv(data_file, index_col='Date', parse_dates=True)
+            st.success("Loaded cached data")
             return combined_data
+        except Exception as e:
+            st.warning(f"Error loading cached data: {e}. Fetching fresh data...")
     
     # Fetch fresh data
     combined_data = pd.DataFrame()
+    
     progress_bar = st.progress(0)
     status_text = st.empty()
     
     for i, ticker in enumerate(ticker_symbols):
-        status_text.text(f"Fetching {ticker}... ({i+1}/{len(ticker_symbols)})")
+        status_text.text(f"Fetching {ticker} ({i+1}/{len(ticker_symbols)})...")
         progress_bar.progress((i+1)/len(ticker_symbols))
         
         data = get_crypto_data(ticker, start_date, end_date)
         if data is not None:
             data['Crypto'] = ticker
-            combined_data = pd.concat([combined_data, data], axis=0)
+            combined_data = pd.concat([combined_data, data])
     
     if not combined_data.empty:
-        combined_data.drop(['Dividends', 'Stock Splits'], axis=1, inplace=True, errors='ignore')
+        combined_data = combined_data.drop(['Dividends', 'Stock Splits'], axis=1, errors='ignore')
         combined_data.to_csv(data_file)
         st.success("Successfully updated cryptocurrency data!")
     else:
@@ -614,8 +614,13 @@ def update_crypto_data(force_refresh=False):
     
     return combined_data
 
-# Initialize data (call this at app startup)
-combined_data = update_crypto_data()
+# Initialize the data (call this at app startup)
+combined_data = load_or_update_crypto_data()
+
+# Add a refresh button in your UI
+if st.button("🔄 Refresh Data"):
+    combined_data = load_or_update_crypto_data(force_refresh=True)
+    st.rerun()
 
 
 
@@ -2945,10 +2950,15 @@ def main():
     elif page == "About Us":
         about_us()
     elif page == "Dataset":
+        
+        # Initialize the data (call this at app startup)
+        combined_data = load_or_update_crypto_data()
+
         dataset_section()
-        # Add a refresh button somewhere in your UI:
-        if st.sidebar.button("🔄 Refresh Crypto Data"):
-            combined_data = update_crypto_data(force_refresh=True)
+
+        # Add a refresh button in your UI
+        if st.button("🔄 Refresh Data"):
+            combined_data = load_or_update_crypto_data(force_refresh=True)
             st.rerun()
        
     elif page == "Coin Correlation":
