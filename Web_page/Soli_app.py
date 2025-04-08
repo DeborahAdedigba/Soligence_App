@@ -862,7 +862,7 @@ def about_us():
     <div style="background-color: rgba(255, 255, 255, 0.8); padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem;">
         <div style="display: flex; align-items: center;">
             <div style="flex: 0 0 150px;">
-                <img src="https://via.placeholder.com/150" width="150" style="border-radius: 8px;">
+                <img src="https://dcassetcdn.com/design_img/2956478/152860/152860_16291385_2956478_2487aca1_image.jpg" width="150" style="border-radius: 8px;">
             </div>
             <div style="flex: 1; padding-left: 1.5rem;">
                 <h1 style="color: #2c3e50; margin-bottom: 0.2rem;">About SOLiGence</h1>
