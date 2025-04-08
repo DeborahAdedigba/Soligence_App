@@ -1722,7 +1722,7 @@ def plot_coin_scatter():
     st.plotly_chart(fig, use_container_width=True)
 
 
-def evaluate_models_selected_coin(data, coin_index, chosen_model='all'):
+def evaluate_models_selected_coin(data, coin_index):
     """
     Evaluate machine learning models for a specific cryptocurrency with single selection
     and enhanced visualizations.
@@ -2947,7 +2947,7 @@ def main():
         elif prediction_option == "Training Model Metrics":
             st.header("Selected Model Metrics")
             coins = st.multiselect("Select coins:", selected_data.columns)
-            model = st.selectbox("Select model:", ['all', 'Gradient Boosting', 'SVR', 'XGBoost', 'LSTM'])
+            # model = st.selectbox("Select model:", ['all', 'Gradient Boosting', 'SVR', 'XGBoost', 'LSTM'])
             
             for coin in coins:
                 coin_index = selected_data.columns.get_loc(coin)
