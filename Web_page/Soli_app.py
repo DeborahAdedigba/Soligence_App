@@ -2969,7 +2969,7 @@ def main():
         visualization_option = st.sidebar.radio("Select Visualization:", 
                                               ['Home', 'Price Comparison', 'Candlestick Chart',
                                                'Market State Visualization', "Predicted Highs and Lows","Close Price Distribution & Trend","Daily Price Change",
-         "Boxplot Comparison"])
+         "Boxplot Comparison","Price and Volume Overview"])
         
         if visualization_option == 'Home':
             st.title("Data Visualization")
@@ -3017,6 +3017,8 @@ def main():
         elif visualization_option == 'Boxplot Comparison':
             selected_coin = st.selectbox("Select a cryptocurrency:", combined_data['Crypto'].unique(), key="box")
             plot_boxplot(combined_data, selected_coin)
+        elif visualization_option == 'Price and Volume Overview':
+            visualize_crypto_data()
     elif page == "Predictions":
         prediction_option = st.sidebar.radio("Select:", 
                                            ["Dataset", "Training", "Training Model Metrics", "Prediction Graphs",
