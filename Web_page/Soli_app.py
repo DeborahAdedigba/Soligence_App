@@ -2975,6 +2975,7 @@ def main():
             st.image('https://img.freepik.com/free-vector/gradient-stock-market-concept_23-2149166910.jpg', 
                     use_container_width=True)
             st.write("Explore different visualizations to gain insights into cryptocurrency markets.")
+            plot_crypto_volatility(combined_data)
         elif visualization_option == 'Price Comparison':
             st.header("Price Comparison by Metrics and Coin")
             vis_option = st.sidebar.radio("Compare:", ['Metrics', 'Coins'])
