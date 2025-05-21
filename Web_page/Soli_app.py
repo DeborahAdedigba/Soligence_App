@@ -2969,14 +2969,13 @@ def main():
         visualization_option = st.sidebar.radio("Select Visualization:", 
                                               ['Home', 'Price Comparison', 'Candlestick Chart',
                                                'Market State Visualization', "Predicted Highs and Lows","Close Price Distribution & Trend","Daily Price Change",
-         "Boxplot Comparison","Price and Volume Overview"])
+         "Boxplot Comparison","Coin Volatility","Price and Volume Overview"])
         
         if visualization_option == 'Home':
             st.title("Data Visualization")
             st.image('https://img.freepik.com/free-vector/gradient-stock-market-concept_23-2149166910.jpg', 
                     use_container_width=True)
             st.write("Explore different visualizations to gain insights into cryptocurrency markets.")
-            plot_crypto_volatility()
         elif visualization_option == 'Price Comparison':
             st.header("Price Comparison by Metrics and Coin")
             vis_option = st.sidebar.radio("Compare:", ['Metrics', 'Coins'])
@@ -3014,11 +3013,12 @@ def main():
         elif visualization_option == 'Daily Price Change':
             selected_coin = st.selectbox("Select a cryptocurrency:", combined_data['Crypto'].unique(), key="daily")
             plot_daily_price_changes(selected_coin)
+        elif visualization_option == 'Coin Volatility':
+            plot_crypto_volatility()
         elif visualization_option == 'Boxplot Comparison':
             selected_coin = st.selectbox("Select a cryptocurrency:", combined_data['Crypto'].unique(), key="box")
             plot_boxplot(combined_data, selected_coin)
-        # elif visualization_option == 'Price and Volume Overview':
-            # visualize_crypto_data()
+
     elif page == "Predictions":
         prediction_option = st.sidebar.radio("Select:", 
                                            ["Dataset", "Training", "Training Model Metrics", "Prediction Graphs",
