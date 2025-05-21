@@ -2976,7 +2976,7 @@ def main():
                     use_container_width=True)
             st.write("Explore different visualizations to gain insights into cryptocurrency markets.")
             plot_crypto_volatility()
-            plot_distribution_and_trend()
+            plot_distribution_and_trend(selected_coin)
         elif visualization_option == 'Price Comparison':
             st.header("Price Comparison by Metrics and Coin")
             vis_option = st.sidebar.radio("Compare:", ['Metrics', 'Coins'])
