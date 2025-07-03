@@ -2816,7 +2816,7 @@ def create_prediction_interface(selected_data):
                             accuracy=metrics.get('Accuracy', 0),
                             precision=metrics.get('Precision', 0),
                             recall=metrics.get('Recall', 0),
-                            f1=metrics.get('F1', 0)
+                            f1=metrics.get('F1', 0))
                         
                         st.markdown(metrics_html, unsafe_allow_html=True)
                     
