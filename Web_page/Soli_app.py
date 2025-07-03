@@ -2489,6 +2489,40 @@ def determine_best_time_to_trade_future(chosen_coin, num_days, combined_data):
         logging.error(f"Error in determine_best_time_to_trade_future: {str(e)}", exc_info=True)
         return None
 
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+
+def evaluate_signal_performance(actual_returns, predicted_signals):
+    """
+    Evaluate the performance of buy/sell signals using classification metrics.
+    
+    Args:
+        actual_returns (pd.Series): Actual future price returns (1 for positive, 0 for negative).
+        predicted_signals (pd.Series): Predicted signals (1 for buy, -1 for sell, 0 for hold).
+    
+    Returns:
+        dict: Classification metrics (accuracy, precision, recall, F1, AUC-ROC).
+    """
+    # Convert signals into binary predictions (1 for buy, 0 for sell)
+    binary_predictions = (predicted_signals == 1).astype(int)
+    
+    # Ensure actual_returns is binary (1 if price went up, 0 if down)
+    actual_binary = (actual_returns > 0).astype(int)
+    
+    # Calculate metrics
+    accuracy = accuracy_score(actual_binary, binary_predictions)
+    precision = precision_score(actual_binary, binary_predictions, zero_division=0)
+    recall = recall_score(actual_binary, binary_predictions, zero_division=0)
+    f1 = f1_score(actual_binary, binary_predictions, zero_division=0)
+    auc_roc = roc_auc_score(actual_binary, binary_predictions) if len(set(actual_binary)) > 1 else None
+    
+    return {
+        'Accuracy': accuracy,
+        'Precision': precision,
+        'Recall': recall,
+        'F1-Score': f1,
+        'AUC-ROC': auc_roc
+    }
+
 def plot_ma_strategy(selected_data, chosen_coin):
     """Plot the moving average strategy"""
     try:
@@ -2541,11 +2575,11 @@ def plot_ma_strategy(selected_data, chosen_coin):
         logging.error(f"Error in plot_ma_strategy: {str(e)}", exc_info=True)
 
 def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
-    """Forecast using machine learning models"""
+    """Forecast using machine learning models and evaluate performance"""
     try:
         if chosen_coin not in selected_data.columns:
             st.error(f"Selected coin '{chosen_coin}' not found in data")
-            return None, None
+            return None, None, None
             
         coin_index = selected_data.columns.get_loc(chosen_coin)
         model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index+1}"
@@ -2559,17 +2593,18 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
         
         if model_type not in model_mapping:
             st.error(f"Invalid model type: {model_type}")
-            return None, None
+            return None, None, None
             
         model_filename = os.path.join(model_dir, model_mapping[model_type])
         
         if not os.path.exists(model_filename):
             st.error(f"Model not found: {model_filename}")
-            return None, None
+            return None, None, None
         
+        # Prepare features with lagged values
         features = [f'{chosen_coin}_lag_{lag}' for lag in range(1, 4)]
-        
         data_copy = selected_data.copy()
+        
         for lag in range(1, 4):
             lag_col = f'{chosen_coin}_lag_{lag}'
             if lag_col not in data_copy.columns:
@@ -2579,9 +2614,10 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
         
         if len(selected_data_clean) == 0:
             st.error("Not enough historical data to generate forecast")
-            return None, None
+            return None, None, None
         
         X_array = selected_data_clean[features].to_numpy()
+        current_price = selected_data_clean[chosen_coin].iloc[-1]
         
         with st.spinner(f"Predicting future price with {model_type} model..."):
             if model_type == "LSTM":
@@ -2591,7 +2627,7 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
                     future_price = model.predict(X_today)[0][0]
                 except Exception as e:
                     st.error(f"Error with LSTM prediction: {str(e)}")
-                    return None, None
+                    return None, None, None
             else:
                 try:
                     model = joblib.load(model_filename)
@@ -2599,15 +2635,37 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
                     future_price = model.predict(X_today)[0]
                 except Exception as e:
                     st.error(f"Error with {model_type} prediction: {str(e)}")
-                    return None, None
+                    return None, None, None
         
         future_date = datetime.now() + timedelta(days=num_days)
-        return future_price, future_date
+        
+        # Backtesting evaluation (only if we have enough historical data)
+        metrics = None
+        if len(selected_data_clean) > num_days:
+            try:
+                # Get actual future price for evaluation
+                actual_future_price = selected_data_clean[chosen_coin].shift(-num_days).iloc[-1]
+                
+                # Generate signals (1 = buy, 0 = sell)
+                predicted_signal = 1 if future_price > current_price else 0
+                actual_signal = 1 if actual_future_price > current_price else 0
+                
+                # Calculate metrics
+                metrics = {
+                    'Accuracy': accuracy_score([actual_signal], [predicted_signal]),
+                    'Precision': precision_score([actual_signal], [predicted_signal], zero_division=0),
+                    'Recall': recall_score([actual_signal], [predicted_signal], zero_division=0),
+                    'F1': f1_score([actual_signal], [predicted_signal], zero_division=0)
+                }
+            except Exception as e:
+                logging.warning(f"Could not calculate metrics: {str(e)}")
+        
+        return future_price, future_date, metrics
     
     except Exception as e:
         st.error(f"Error in price forecasting: {str(e)}")
         logging.error(f"Error in forecast_price_with_model: {str(e)}", exc_info=True)
-        return None, None
+        return None, None, None
 
 def create_prediction_interface(selected_data):
     """Create unified prediction interface"""
@@ -2638,7 +2696,7 @@ def create_prediction_interface(selected_data):
         
         if predict_button:
             with st.spinner("Analyzing market data..."):
-                future_price, future_date = forecast_price_with_model(chosen_coin, num_days, model_type, selected_data)
+                future_price, future_date, metrics = forecast_price_with_model(chosen_coin, num_days, model_type, selected_data)
                 
                 if future_price is not None:
                     current_price = selected_data[chosen_coin].iloc[-1]
@@ -2671,6 +2729,32 @@ def create_prediction_interface(selected_data):
                     }
                     .price-down {
                         color: #ef4444;
+                    }
+                    .metrics-box {
+                        background-color: #f8f9fa;
+                        border-radius: 8px;
+                        padding: 15px;
+                        margin-top: 15px;
+                        border-left: 5px solid #6c757d;
+                    }
+                    .metrics-title {
+                        font-size: 16px;
+                        font-weight: bold;
+                        margin-bottom: 10px;
+                        color: #495057;
+                    }
+                    .metric-row {
+                        display: flex;
+                        justify-content: space-between;
+                        margin-bottom: 8px;
+                    }
+                    .metric-name {
+                        font-weight: 600;
+                        color: #6c757d;
+                    }
+                    .metric-value-small {
+                        font-weight: bold;
+                        color: #212529;
                     }
                     </style>
                     """, unsafe_allow_html=True)
@@ -2705,10 +2789,41 @@ def create_prediction_interface(selected_data):
                     """
                     
                     st.markdown(result_html, unsafe_allow_html=True)
+                    
+                    # Add metrics box if available
+                    if metrics:
+                        metrics_html = """
+                        <div class="metrics-box">
+                            <div class="metrics-title">📊 Model Performance Metrics</div>
+                            <div class="metric-row">
+                                <span class="metric-name">Accuracy:</span>
+                                <span class="metric-value-small">{accuracy:.1%}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-name">Precision:</span>
+                                <span class="metric-value-small">{precision:.1%}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-name">Recall:</span>
+                                <span class="metric-value-small">{recall:.1%}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-name">F1-Score:</span>
+                                <span class="metric-value-small">{f1:.1%}</span>
+                            </div>
+                        </div>
+                        """.format(
+                            accuracy=metrics.get('Accuracy', 0),
+                            precision=metrics.get('Precision', 0),
+                            recall=metrics.get('Recall', 0),
+                            f1=metrics.get('F1', 0)
+                        
+                        st.markdown(metrics_html, unsafe_allow_html=True)
+                    
                     st.caption("Note: This forecast is an estimate and market conditions can change unexpectedly.")
                 else:
                     st.error("Unable to forecast price.")
-    
+            
 # getting best coins   
 def find_best_coins(model_type, desired_profit, num_days):
     if selected_data.empty:
