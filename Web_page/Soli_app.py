@@ -618,6 +618,30 @@ def load_crypto_data(show_messages=False):
 
 combined_data = load_crypto_data(show_messages=False)
 
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+
+# Compute the elbow plot
+def plot_elbow(loadings):
+    inertia = []
+    K = range(1, 10)
+    for k in K:
+        kmeans = KMeans(n_clusters=k, random_state=0)
+        kmeans.fit(loadings.iloc[:, :-1])  # exclude 'Cluster' column
+        inertia.append(kmeans.inertia_)
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(K, inertia, 'bo-')
+    ax.set_xlabel('Number of clusters k')
+    ax.set_ylabel('Inertia')
+    ax.set_title('Elbow Method For Optimal k')
+
+    st.pyplot(fig)
+
+
+    
+
+
 
 # Generate selected coins through PCA and clustering
 def generate_selected_data(data):
@@ -3021,13 +3045,32 @@ def main():
 
     elif page == "Predictions":
         prediction_option = st.sidebar.radio("Select:", 
-                                           ["Dataset", "Training", "Training Model Metrics", "Prediction Graphs",
+                                           ["Dataset","K_mean", "Training", "Training Model Metrics", "Prediction Graphs",
                                             "Buy and Sell Prediction", "Predict coin by Profit"])
         
         if prediction_option == "Dataset":
             display_selected_coins()
             st.markdown("---")  # Add a horizontal divider
             plot_coin_scatter()
+        elif prediction_option == "K_mean":
+            st.title("PCA & Clustering Demo")
+
+            # Assume you've done PCA and have your loadings:
+            pivoted_data = combined_data.pivot(columns='Crypto', values='Close')
+            pivoted_data_filled = pivoted_data.fillna(0)
+            scaler = StandardScaler()
+            scaled_data = scaler.fit_transform(pivoted_data_filled)
+            pca = PCA(n_components=10)
+            pca_result = pca.fit_transform(scaled_data)
+            loadings = pd.DataFrame(
+                pca.components_.T,
+                columns=[f'PC{i}' for i in range(1, 11)],
+                index=pivoted_data.columns
+            )
+
+            # Call your elbow plot here
+            if st.button("Show Elbow Plot for KMeans Clustering"):
+                plot_elbow(loadings)
     
         elif prediction_option == "Training":
             st.header("Model Training")
