@@ -1842,6 +1842,468 @@ def plot_coin_scatter():
     
     st.plotly_chart(fig, use_container_width=True)
 
+# import numpy as np
+# import pandas as pd
+# import streamlit as st
+# import matplotlib.pyplot as plt
+# import plotly.graph_objects as go
+# import joblib
+# import os
+# import tensorflow as tf
+# from sklearn.metrics import (mean_absolute_error, mean_squared_error, 
+#                             r2_score)
+# from sklearn.inspection import permutation_importance
+# from xgboost import plot_importance
+# from keras.models import Model
+# import shap
+# from sklearn.model_selection import train_test_split
+# from sklearn.ensemble import GradientBoostingRegressor
+# from sklearn.svm import SVR
+# from xgboost import XGBRegressor
+# from keras.models import Sequential
+# from keras.layers import LSTM, Dense
+
+# def analyze_feature_importance(model, model_type, X_train, feature_names):
+#     """
+#     Analyze and visualize feature importance for different model types
+    
+#     Args:
+#         model: Trained model
+#         model_type: One of ['GRADIENT BOOSTING', 'SVR', 'XGBOOST', 'LSTM']
+#         X_train: Training features
+#         feature_names: List of feature names
+        
+#     Returns:
+#         fig: Matplotlib figure object
+#     """
+#     st.subheader(f"🔍 Feature Importance Analysis ({model_type})")
+    
+#     try:
+#         if model_type == 'GRADIENT BOOSTING':
+#             # Gradient Boosting built-in feature importance
+#             importance = model.feature_importances_
+#             fig, ax = plt.subplots(figsize=(8, 4))
+#             ax.barh(feature_names, importance)
+#             ax.set_title('Gradient Boosting Feature Importance')
+#             ax.set_xlabel('Relative Importance')
+#             plt.tight_layout()
+#             return fig
+            
+#         elif model_type == 'XGBOOST':
+#             # XGBoost built-in importance
+#             fig, ax = plt.subplots(figsize=(8, 4))
+#             plot_importance(model, ax=ax, height=0.5)
+#             ax.set_title('XGBoost Feature Importance')
+#             plt.tight_layout()
+#             return fig
+            
+#         elif model_type == 'SVR':
+#             # Permutation importance for SVR
+#             with st.spinner("Calculating permutation importance (this may take a minute)..."):
+#                 result = permutation_importance(
+#                     model, X_train[:100], np.random.rand(100),  # Use subset for speed
+#                     n_repeats=10, random_state=42
+#                 )
+#             importance = result.importances_mean
+#             fig, ax = plt.subplots(figsize=(8, 4))
+#             ax.barh(feature_names, importance)
+#             ax.set_title('SVR Permutation Importance')
+#             ax.set_xlabel('Score Change When Permuted')
+#             plt.tight_layout()
+#             return fig
+            
+#         elif model_type == 'LSTM':
+#             # SHAP values for LSTM
+#             with st.spinner("Calculating SHAP values (this may take a few minutes)..."):
+#                 background = X_train[:100].reshape(100, -1, 1)
+#                 explainer = shap.DeepExplainer(model, background)
+#                 shap_values = explainer.shap_values(background)
+                
+#                 fig, ax = plt.subplots(figsize=(8, 4))
+#                 shap.summary_plot(
+#                     shap_values[0].reshape(-1, len(feature_names)),
+#                     background.reshape(-1, len(feature_names)),
+#                     feature_names=feature_names,
+#                     plot_type='bar',
+#                     show=False
+#                 )
+#                 plt.title('LSTM Feature Importance (SHAP Values)')
+#                 plt.tight_layout()
+#                 return fig
+                
+#     except Exception as e:
+#         st.error(f"Feature importance analysis failed: {str(e)}")
+#         return None
+
+# def evaluate_models_selected_coin(data, coin_index):
+#     """
+#     Evaluate machine learning models for a specific cryptocurrency with single selection,
+#     enhanced visualizations, and feature importance analysis.
+#     """
+#     try:
+#         # Validate input data
+#         if data.empty:
+#             st.error("No data available for evaluation.")
+#             return
+            
+#         coin_name = data.columns[coin_index]
+#         model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index+1}"
+        
+#         # Display version requirements in expander
+#         req_file = f"{model_dir}/requirements.txt"
+#         if os.path.exists(req_file):
+#             with st.expander("Model Version Requirements", expanded=False):
+#                 with open(req_file) as f:
+#                     st.code(f.read())
+        
+#         # Check if models exist, if not train them
+#         if not os.path.exists(model_dir):
+#             with st.status("Training models...", expanded=True) as status:
+#                 st.write(f"No trained models found for {coin_name}. Training models now...")
+#                 train_models_for_coin(data, coin_index)
+#                 status.update(label="Models trained successfully!", state="complete")
+        
+#         # Prepare data with lag features
+#         with st.spinner("Preparing data..."):
+#             data_prep = data.copy()
+#             for lag in range(1, 4):
+#                 data_prep[f'{coin_name}_lag_{lag}'] = data_prep[coin_name].shift(lag)
+#             data_prep.dropna(inplace=True)
+            
+#             features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
+#             X = data_prep[features]
+#             y = data_prep[coin_name]
+            
+#             # Time-based split instead of random for time series
+#             split_idx = int(len(X) * 0.8)
+#             X_train, X_test = X[:split_idx], X[split_idx:]
+#             y_train, y_test = y[:split_idx], y[split_idx:]
+
+#         # Model loading with error recovery
+#         models = {}
+#         retrained = False
+#         try:
+#             with st.spinner("Loading models..."):
+#                 models = {
+#                     'GRADIENT BOOSTING': joblib.load(f"{model_dir}/gradient_boosting_model.pkl"),
+#                     'SVR': joblib.load(f"{model_dir}/svr_model.pkl"),
+#                     'XGBOOST': joblib.load(f"{model_dir}/xgboost_model.pkl"),
+#                     'LSTM': tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
+#                 }
+#         except Exception as e:
+#             with st.status("Model version mismatch detected - retraining models...", expanded=True) as status:
+#                 st.warning(f"Model loading failed: {str(e)}")
+#                 train_models_for_coin(data, coin_index)
+#                 retrained = True
+                
+#                 try:
+#                     models = {
+#                         'GRADIENT BOOSTING': joblib.load(f"{model_dir}/gradient_boosting_model.pkl"),
+#                         'SVR': joblib.load(f"{model_dir}/svr_model.pkl"),
+#                         'XGBOOST': joblib.load(f"{model_dir}/xgboost_model.pkl"),
+#                         'LSTM': tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
+#                     }
+#                     status.update(label="Models retrained successfully!", state="complete")
+#                 except Exception as e:
+#                     status.update(label="Model loading failed again", state="error")
+#                     st.error(f"Model loading failed again: {str(e)}")
+#                     return
+
+#         # Multiple model selection
+#         available_models = list(models.keys())
+#         selected_models = st.multiselect(
+#             "Select models to evaluate:",
+#             options=available_models,
+#             default=[available_models[0]] if available_models else [],  # Default to first model if available
+#             key=f"multimodel_select_{coin_index}"
+#         )
+
+#         # Ensure at least one model is selected
+#         if not selected_models and available_models:
+#             st.warning("Please select at least one model to evaluate.")
+#             selected_models = [available_models[0]]  
+
+#         # Evaluation metrics storage
+#         eval_metrics = {}
+#         predictions_data = []
+#         time_series_data = []
+
+#         for selected_model in selected_models:  # Loop through all selected models
+#             with st.spinner(f"Evaluating {selected_model}..."):
+#                 model = models[selected_model]
+#                 if model is None:
+#                     st.warning(f"{selected_model} model not available")
+#                     continue
+
+#                 try:
+#                     # Make predictions
+#                     if selected_model == 'LSTM':
+#                         X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
+#                         predictions = model.predict(X_test_array).flatten()
+#                     else:
+#                         predictions = model.predict(X_test)
+
+#                     # Calculate metrics
+#                     metrics = {
+#                         'MAE': mean_absolute_error(y_test, predictions),
+#                         'MSE': mean_squared_error(y_test, predictions),
+#                         'RMSE': np.sqrt(mean_squared_error(y_test, predictions)),
+#                         'MAPE': np.mean(np.abs((y_test - predictions) / y_test)) * 100,
+#                         'R2': r2_score(y_test, predictions)
+#                     }
+#                     eval_metrics[selected_model] = metrics
+
+#                     # Store data for visualizations
+#                     predictions_data.append({
+#                         'Model': selected_model,
+#                         'Actual': y_test,
+#                         'Predicted': predictions
+#                     })
+                    
+#                     # Store time series data
+#                     time_series_data.append({
+#                         'Model': selected_model,
+#                         'Dates': data_prep.index[split_idx:],
+#                         'Actual': y_test,
+#                         'Predicted': predictions
+#                     })
+
+#                 except Exception as e:
+#                     st.error(f"Error evaluating {selected_model}: {str(e)}")
+#                     continue
+
+#         # Display results
+#         if not eval_metrics:
+#             st.error("No models were successfully evaluated")
+#             return
+
+#         st.subheader(f"📊 Evaluation Results for {coin_name}")
+            
+#         # Metrics table with enhanced styling
+#         with st.expander("Detailed Metrics", expanded=True):
+#             metrics_df = pd.DataFrame.from_dict(eval_metrics, orient='index')
+            
+#             # Apply conditional formatting
+#             def color_metric(val, metric_name):
+#                 if metric_name == 'R2':
+#                     # Green for higher R2 (better)
+#                     color = 'green' if val > 0.7 else 'orange' if val > 0.5 else 'red'
+#                 else:
+#                     # Red for higher error metrics (worse)
+#                     color = 'red' if val > metrics_df[metric_name].mean() else 'green'
+#                 return f'color: {color}; font-weight: bold'
+            
+#             styled_metrics = metrics_df.style.format({
+#                 'MAE': '{:.4f}',
+#                 'MSE': '{:.4f}',
+#                 'RMSE': '{:.4f}',
+#                 'MAPE': '{:.2f}%',
+#                 'R2': '{:.4f}'
+#             }).map(lambda x: 'font-weight: bold', subset=['R2'])
+            
+#             # Apply color to each metric column
+#             for metric in metrics_df.columns:
+#                 styled_metrics = styled_metrics.map(
+#                     lambda x, m=metric: color_metric(x, m), 
+#                     subset=[metric]
+#                 )
+            
+#             st.dataframe(styled_metrics, use_container_width=True)
+            
+#             # Add download button
+#             csv = metrics_df.to_csv().encode('utf-8')
+#             st.download_button(
+#                 label="Download Metrics as CSV",
+#                 data=csv,
+#                 file_name=f'{coin_name}_metrics.csv',
+#                 mime='text/csv',
+#                 key=f"dl_metrics_{coin_index}"
+#             )
+
+#         # Time Series Visualization
+#         st.subheader("⏳ Time Series Performance")
+
+#         fig_ts = go.Figure()
+
+#         # Add actual values (only once)
+#         fig_ts.add_trace(go.Scatter(
+#             x=time_series_data[0]['Dates'],
+#             y=time_series_data[0]['Actual'],
+#             mode='lines',
+#             name='Actual',
+#             line=dict(color='black', width=2),
+#             hovertemplate='Date: %{x}<br>Price: %{y:.4f}'
+#         ))
+
+#         # Add predicted values for each model
+#         for model_data in time_series_data:
+#             fig_ts.add_trace(go.Scatter(
+#                 x=model_data['Dates'],
+#                 y=model_data['Predicted'],
+#                 mode='lines',
+#                 name=f"{model_data['Model']} Predicted",
+#                 line=dict(dash='dash'),
+#                 hovertemplate='Date: %{x}<br>Predicted: %{y:.4f}'
+#             ))
+
+#         fig_ts.update_layout(
+#             title='Actual vs Predicted Over Time',
+#             xaxis_title='Date',
+#             yaxis_title='Price',
+#             hovermode="x unified",
+#             height=500
+#         )
+#         st.plotly_chart(fig_ts, use_container_width=True)
+
+#         # Actual vs Predicted scatter plot
+#         st.subheader("🎯 Prediction Accuracy")
+
+#         for model_data in predictions_data:
+#             st.markdown(f"**{model_data['Model']}**")
+#             col1, col2 = st.columns([3, 1])
+            
+#             with col1:
+#                 fig_scatter = go.Figure()
+                
+#                 fig_scatter.add_trace(go.Scatter(
+#                     x=model_data['Actual'],
+#                     y=model_data['Predicted'],
+#                     mode='markers',
+#                     name=model_data['Model'],
+#                     marker=dict(size=8, opacity=0.7),
+#                     hovertemplate='Actual: %{x:.4f}<br>Predicted: %{y:.4f}'
+#                 ))
+                
+#                 # Add perfect prediction line
+#                 min_val = min(model_data['Actual'])
+#                 max_val = max(model_data['Actual'])
+#                 fig_scatter.add_trace(go.Scatter(
+#                     x=[min_val, max_val],
+#                     y=[min_val, max_val],
+#                     mode='lines',
+#                     name='Perfect Prediction',
+#                     line=dict(color='red', dash='dash'),
+#                     hovertemplate=None
+#                 ))
+                
+#                 fig_scatter.update_layout(
+#                     title=f'Actual vs Predicted Values ({model_data["Model"]})',
+#                     xaxis_title='Actual Price',
+#                     yaxis_title='Predicted Price',
+#                     showlegend=True,
+#                     height=400
+#                 )
+#                 st.plotly_chart(fig_scatter, use_container_width=True)
+            
+#             with col2:
+#                 metrics = eval_metrics[model_data['Model']]
+#                 st.metric("R² Score", f"{metrics['R2']:.4f}")
+#                 st.metric("RMSE", f"{metrics['RMSE']:.4f}")
+#                 st.metric("MAE", f"{metrics['MAE']:.4f}")
+#                 st.download_button(
+#                     f"Download {model_data['Model']} Data",
+#                     pd.DataFrame(model_data).to_csv().encode('utf-8'),
+#                     file_name=f'{coin_name}_{model_data["Model"]}_prediction_data.csv',
+#                     mime='text/csv',
+#                     key=f"dl_pred_data_{coin_index}_{model_data['Model']}"
+#                 )
+                
+#             # Feature Importance Analysis
+#             if model_data['Model'] in models:
+#                 model = models[model_data['Model']]
+#                 if model is not None:
+#                     # Prepare X_train for feature importance analysis
+#                     if model_data['Model'] == 'LSTM':
+#                         X_train_array = X_train.to_numpy().reshape(X_train.shape[0], X_train.shape[1], 1)
+#                     else:
+#                         X_train_array = X_train.to_numpy()
+                    
+#                     # Show feature importance
+#                     fig = analyze_feature_importance(
+#                         model, 
+#                         model_data['Model'], 
+#                         X_train_array,
+#                         features
+#                     )
+#                     if fig:
+#                         st.pyplot(fig)
+#                         plt.close()
+
+#         # Show retrained notice if applicable
+#         if retrained:
+#             st.info("ℹ️ Note: Models were retrained with current environment settings")
+        
+
+#     except Exception as e:
+#         st.error(f"An unexpected error occurred: {str(e)}")
+#         st.error("Please check your data and model files")
+
+# def plot_actual_forecast_with_confidence(actual, predictions, periods, upper_bound, lower_bound, coin_name, model_name):
+#     """Enhanced visualization of actual vs predicted values with confidence interval"""
+#     fig = go.Figure()
+    
+#     # Main traces
+#     fig.add_trace(go.Scatter(
+#         x=periods, y=actual, 
+#         mode='lines+markers', 
+#         name='Actual', 
+#         line=dict(color='#2ca02c', width=2),
+#         marker=dict(size=6)
+#     ))
+    
+#     fig.add_trace(go.Scatter(
+#         x=periods, y=predictions, 
+#         mode='lines+markers', 
+#         name='Forecast', 
+#         line=dict(color='#d62728', width=2, dash='dot'),
+#         marker=dict(size=6, symbol='diamond')
+#     ))
+    
+#     # Confidence interval
+#     fig.add_trace(go.Scatter(
+#         x=periods, y=upper_bound, 
+#         mode='lines', 
+#         name='Upper Bound (95%)', 
+#         line=dict(color='#1f77b4', width=1, dash='dash'),
+#         opacity=0.3
+#     ))
+    
+#     fig.add_trace(go.Scatter(
+#         x=periods, y=lower_bound, 
+#         mode='lines', 
+#         name='Lower Bound (95%)', 
+#         fill='tonexty', 
+#         line=dict(color='#1f77b4', width=1, dash='dash'),
+#         opacity=0.3
+#     ))
+    
+#     fig.update_layout(
+#         title=f"{coin_name} - Actual vs Forecast ({model_name})",
+#         xaxis_title='Date',
+#         yaxis_title='Price',
+#         hovermode="x unified",
+#         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+#         template="plotly_white",
+#         margin=dict(l=20, r=20, t=60, b=20))
+    
+#     # Add shaded area for confidence interval
+#     fig.update_layout(
+#         annotations=[
+#             dict(
+#                 xref="paper", yref="paper",
+#                 x=0.02, y=0.98,
+#                 text="95% Confidence Interval",
+#                 showarrow=False,
+#                 font=dict(size=10, color="#1f77b4"),
+#                 bgcolor="white",
+#                 opacity=0.8
+#             )
+#         ]
+#     )
+    
+#     st.plotly_chart(fig, use_container_width=True)
+
+
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -1863,7 +2325,7 @@ from xgboost import XGBRegressor
 from keras.models import Sequential
 from keras.layers import LSTM, Dense
 
-def analyze_feature_importance(model, model_type, X_train, feature_names):
+def analyze_feature_importance(model, model_type, X_train, y_train, feature_names):
     """
     Analyze and visualize feature importance for different model types
     
@@ -1871,6 +2333,7 @@ def analyze_feature_importance(model, model_type, X_train, feature_names):
         model: Trained model
         model_type: One of ['GRADIENT BOOSTING', 'SVR', 'XGBOOST', 'LSTM']
         X_train: Training features
+        y_train: Training targets (needed for permutation importance)
         feature_names: List of feature names
         
     Returns:
@@ -1882,57 +2345,131 @@ def analyze_feature_importance(model, model_type, X_train, feature_names):
         if model_type == 'GRADIENT BOOSTING':
             # Gradient Boosting built-in feature importance
             importance = model.feature_importances_
-            fig, ax = plt.subplots(figsize=(8, 4))
-            ax.barh(feature_names, importance)
-            ax.set_title('Gradient Boosting Feature Importance')
-            ax.set_xlabel('Relative Importance')
+            fig, ax = plt.subplots(figsize=(10, 6))
+            bars = ax.barh(feature_names, importance, color='skyblue', edgecolor='navy')
+            ax.set_title('Gradient Boosting Feature Importance', fontsize=14, fontweight='bold')
+            ax.set_xlabel('Relative Importance', fontsize=12)
+            ax.set_ylabel('Features', fontsize=12)
+            
+            # Add value labels on bars
+            for i, bar in enumerate(bars):
+                width = bar.get_width()
+                ax.text(width + 0.001, bar.get_y() + bar.get_height()/2, 
+                       f'{width:.3f}', ha='left', va='center', fontsize=10)
+            
             plt.tight_layout()
             return fig
             
         elif model_type == 'XGBOOST':
             # XGBoost built-in importance
-            fig, ax = plt.subplots(figsize=(8, 4))
-            plot_importance(model, ax=ax, height=0.5)
-            ax.set_title('XGBoost Feature Importance')
+            fig, ax = plt.subplots(figsize=(10, 6))
+            plot_importance(model, ax=ax, height=0.5, color='lightcoral')
+            ax.set_title('XGBoost Feature Importance', fontsize=14, fontweight='bold')
             plt.tight_layout()
             return fig
             
         elif model_type == 'SVR':
             # Permutation importance for SVR
             with st.spinner("Calculating permutation importance (this may take a minute)..."):
+                # Use a reasonable subset for performance
+                subset_size = min(200, len(X_train))
+                indices = np.random.choice(len(X_train), subset_size, replace=False)
+                X_subset = X_train[indices] if hasattr(X_train, '__getitem__') else X_train.iloc[indices]
+                y_subset = y_train[indices] if hasattr(y_train, '__getitem__') else y_train.iloc[indices]
+                
                 result = permutation_importance(
-                    model, X_train[:100], np.random.rand(100),  # Use subset for speed
-                    n_repeats=10, random_state=42
+                    model, X_subset, y_subset,
+                    n_repeats=10, random_state=42, n_jobs=-1
                 )
+                
             importance = result.importances_mean
-            fig, ax = plt.subplots(figsize=(8, 4))
-            ax.barh(feature_names, importance)
-            ax.set_title('SVR Permutation Importance')
-            ax.set_xlabel('Score Change When Permuted')
+            importance_std = result.importances_std
+            
+            fig, ax = plt.subplots(figsize=(10, 6))
+            bars = ax.barh(feature_names, importance, xerr=importance_std, 
+                          color='lightgreen', edgecolor='darkgreen', capsize=5)
+            ax.set_title('SVR Permutation Importance', fontsize=14, fontweight='bold')
+            ax.set_xlabel('Mean Decrease in Score', fontsize=12)
+            ax.set_ylabel('Features', fontsize=12)
+            
+            # Add value labels on bars
+            for i, bar in enumerate(bars):
+                width = bar.get_width()
+                ax.text(width + 0.001, bar.get_y() + bar.get_height()/2, 
+                       f'{width:.3f}', ha='left', va='center', fontsize=10)
+            
             plt.tight_layout()
             return fig
             
         elif model_type == 'LSTM':
-            # SHAP values for LSTM
-            with st.spinner("Calculating SHAP values (this may take a few minutes)..."):
-                background = X_train[:100].reshape(100, -1, 1)
-                explainer = shap.DeepExplainer(model, background)
-                shap_values = explainer.shap_values(background)
+            # Alternative approach for LSTM: Permutation importance instead of SHAP
+            st.info("Using permutation importance for LSTM (SHAP compatibility issues with current TensorFlow version)")
+            
+            with st.spinner("Calculating permutation importance for LSTM..."):
+                # Prepare data for LSTM
+                if len(X_train.shape) == 2:
+                    X_train_lstm = X_train.reshape(X_train.shape[0], X_train.shape[1], 1)
+                else:
+                    X_train_lstm = X_train
                 
-                fig, ax = plt.subplots(figsize=(8, 4))
-                shap.summary_plot(
-                    shap_values[0].reshape(-1, len(feature_names)),
-                    background.reshape(-1, len(feature_names)),
-                    feature_names=feature_names,
-                    plot_type='bar',
-                    show=False
+                # Use subset for performance
+                subset_size = min(100, len(X_train_lstm))
+                indices = np.random.choice(len(X_train_lstm), subset_size, replace=False)
+                X_subset = X_train_lstm[indices]
+                y_subset = y_train[indices] if hasattr(y_train, '__getitem__') else y_train.iloc[indices]
+                
+                # Calculate permutation importance
+                result = permutation_importance(
+                    model, X_subset, y_subset,
+                    n_repeats=5, random_state=42
                 )
-                plt.title('LSTM Feature Importance (SHAP Values)')
-                plt.tight_layout()
-                return fig
+                
+            importance = result.importances_mean
+            importance_std = result.importances_std
+            
+            fig, ax = plt.subplots(figsize=(10, 6))
+            bars = ax.barh(feature_names, importance, xerr=importance_std, 
+                          color='plum', edgecolor='purple', capsize=5)
+            ax.set_title('LSTM Permutation Importance', fontsize=14, fontweight='bold')
+            ax.set_xlabel('Mean Decrease in Score', fontsize=12)
+            ax.set_ylabel('Features', fontsize=12)
+            
+            # Add value labels on bars
+            for i, bar in enumerate(bars):
+                width = bar.get_width()
+                ax.text(width + 0.001, bar.get_y() + bar.get_height()/2, 
+                       f'{width:.3f}', ha='left', va='center', fontsize=10)
+            
+            plt.tight_layout()
+            return fig
+            
+        else:
+            st.warning(f"Feature importance analysis not implemented for {model_type}")
+            return None
                 
     except Exception as e:
         st.error(f"Feature importance analysis failed: {str(e)}")
+        st.error("This might be due to model compatibility issues or insufficient data")
+        return None
+
+def lstm_attention_weights_analysis(model, X_sample, feature_names):
+    """
+    Alternative analysis for LSTM using attention-like weights
+    """
+    try:
+        # Get intermediate layer outputs
+        intermediate_layer_model = Model(inputs=model.input, 
+                                       outputs=model.layers[0].output)
+        
+        # Get LSTM outputs
+        lstm_outputs = intermediate_layer_model.predict(X_sample)
+        
+        # Calculate simple attention weights based on variance
+        attention_weights = np.var(lstm_outputs, axis=0)
+        attention_weights = attention_weights / np.sum(attention_weights)
+        
+        return attention_weights.flatten()
+    except:
         return None
 
 def evaluate_models_selected_coin(data, coin_index):
@@ -2212,7 +2749,7 @@ def evaluate_models_selected_coin(data, coin_index):
             if model_data['Model'] in models:
                 model = models[model_data['Model']]
                 if model is not None:
-                    # Prepare X_train for feature importance analysis
+                    # Prepare data for feature importance analysis
                     if model_data['Model'] == 'LSTM':
                         X_train_array = X_train.to_numpy().reshape(X_train.shape[0], X_train.shape[1], 1)
                     else:
@@ -2223,6 +2760,7 @@ def evaluate_models_selected_coin(data, coin_index):
                         model, 
                         model_data['Model'], 
                         X_train_array,
+                        y_train.to_numpy(),  # Pass y_train for permutation importance
                         features
                     )
                     if fig:
@@ -2232,423 +2770,10 @@ def evaluate_models_selected_coin(data, coin_index):
         # Show retrained notice if applicable
         if retrained:
             st.info("ℹ️ Note: Models were retrained with current environment settings")
-        
 
     except Exception as e:
         st.error(f"An unexpected error occurred: {str(e)}")
         st.error("Please check your data and model files")
-
-def plot_actual_forecast_with_confidence(actual, predictions, periods, upper_bound, lower_bound, coin_name, model_name):
-    """Enhanced visualization of actual vs predicted values with confidence interval"""
-    fig = go.Figure()
-    
-    # Main traces
-    fig.add_trace(go.Scatter(
-        x=periods, y=actual, 
-        mode='lines+markers', 
-        name='Actual', 
-        line=dict(color='#2ca02c', width=2),
-        marker=dict(size=6)
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=periods, y=predictions, 
-        mode='lines+markers', 
-        name='Forecast', 
-        line=dict(color='#d62728', width=2, dash='dot'),
-        marker=dict(size=6, symbol='diamond')
-    ))
-    
-    # Confidence interval
-    fig.add_trace(go.Scatter(
-        x=periods, y=upper_bound, 
-        mode='lines', 
-        name='Upper Bound (95%)', 
-        line=dict(color='#1f77b4', width=1, dash='dash'),
-        opacity=0.3
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=periods, y=lower_bound, 
-        mode='lines', 
-        name='Lower Bound (95%)', 
-        fill='tonexty', 
-        line=dict(color='#1f77b4', width=1, dash='dash'),
-        opacity=0.3
-    ))
-    
-    fig.update_layout(
-        title=f"{coin_name} - Actual vs Forecast ({model_name})",
-        xaxis_title='Date',
-        yaxis_title='Price',
-        hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        template="plotly_white",
-        margin=dict(l=20, r=20, t=60, b=20))
-    
-    # Add shaded area for confidence interval
-    fig.update_layout(
-        annotations=[
-            dict(
-                xref="paper", yref="paper",
-                x=0.02, y=0.98,
-                text="95% Confidence Interval",
-                showarrow=False,
-                font=dict(size=10, color="#1f77b4"),
-                bgcolor="white",
-                opacity=0.8
-            )
-        ]
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-
-# def evaluate_models_selected_coin(data, coin_index):
-#     """
-#     Evaluate machine learning models for a specific cryptocurrency with single selection
-#     and enhanced visualizations.
-#     """
-#     try:
-#         # Validate input data
-#         if data.empty:
-#             st.error("No data available for evaluation.")
-#             return
-            
-#         coin_name = data.columns[coin_index]
-#         model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index+1}"
-        
-#         # Display version requirements in expander
-#         req_file = f"{model_dir}/requirements.txt"
-#         if os.path.exists(req_file):
-#             with st.expander("Model Version Requirements", expanded=False):
-#                 with open(req_file) as f:
-#                     st.code(f.read())
-        
-#         # Check if models exist, if not train them
-#         if not os.path.exists(model_dir):
-#             with st.status("Training models...", expanded=True) as status:
-#                 st.write(f"No trained models found for {coin_name}. Training models now...")
-#                 train_models_for_coin(data, coin_index)
-#                 status.update(label="Models trained successfully!", state="complete")
-        
-#         # Prepare data with lag features
-#         with st.spinner("Preparing data..."):
-#             data_prep = data.copy()
-#             for lag in range(1, 4):
-#                 data_prep[f'{coin_name}_lag_{lag}'] = data_prep[coin_name].shift(lag)
-#             data_prep.dropna(inplace=True)
-            
-#             features = [f'{coin_name}_lag_{lag}' for lag in range(1, 4)]
-#             X = data_prep[features]
-#             y = data_prep[coin_name]
-            
-#             # Time-based split instead of random for time series
-#             split_idx = int(len(X) * 0.8)
-#             X_train, X_test = X[:split_idx], X[split_idx:]
-#             y_train, y_test = y[:split_idx], y[split_idx:]
-
-#         # Model loading with error recovery
-#         models = {}
-#         retrained = False
-#         try:
-#             with st.spinner("Loading models..."):
-#                 models = {
-#                     'GRADIENT BOOSTING': joblib.load(f"{model_dir}/gradient_boosting_model.pkl"),
-#                     'SVR': joblib.load(f"{model_dir}/svr_model.pkl"),
-#                     'XGBOOST': joblib.load(f"{model_dir}/xgboost_model.pkl"),
-#                     'LSTM': tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
-#                 }
-#         except Exception as e:
-#             with st.status("Model version mismatch detected - retraining models...", expanded=True) as status:
-#                 st.warning(f"Model loading failed: {str(e)}")
-#                 train_models_for_coin(data, coin_index)
-#                 retrained = True
-                
-#                 try:
-#                     models = {
-#                         'GRADIENT BOOSTING': joblib.load(f"{model_dir}/gradient_boosting_model.pkl"),
-#                         'SVR': joblib.load(f"{model_dir}/svr_model.pkl"),
-#                         'XGBOOST': joblib.load(f"{model_dir}/xgboost_model.pkl"),
-#                         'LSTM': tf.keras.models.load_model(f"{model_dir}/lstm_model.keras")
-#                     }
-#                     status.update(label="Models retrained successfully!", state="complete")
-#                 except Exception as e:
-#                     status.update(label="Model loading failed again", state="error")
-#                     st.error(f"Model loading failed again: {str(e)}")
-#                     return
-
-#         # Multiple model selection
-#         available_models = list(models.keys())
-#         selected_models = st.multiselect(
-#             "Select models to evaluate:",
-#             options=available_models,
-#             default=[available_models[0]] if available_models else [],  # Default to first model if available
-#             key=f"multimodel_select_{coin_index}"
-#         )
-
-#         # Ensure at least one model is selected
-#         if not selected_models and available_models:
-#             st.warning("Please select at least one model to evaluate.")
-#             selected_models = [available_models[0]]  
-
-#         # Evaluation metrics storage
-#         eval_metrics = {}
-#         predictions_data = []
-#         time_series_data = []
-
-#         for selected_model in selected_models:  # Loop through all selected models
-#             with st.spinner(f"Evaluating {selected_model}..."):
-#                 model = models[selected_model]
-#                 if model is None:
-#                     st.warning(f"{selected_model} model not available")
-#                     continue
-
-#                 try:
-#                     # Make predictions
-#                     if selected_model == 'LSTM':
-#                         X_test_array = X_test.to_numpy().reshape(X_test.shape[0], X_test.shape[1], 1)
-#                         predictions = model.predict(X_test_array).flatten()
-#                     else:
-#                         predictions = model.predict(X_test)
-
-#                     # Calculate metrics
-#                     metrics = {
-#                         'MAE': mean_absolute_error(y_test, predictions),
-#                         'MSE': mean_squared_error(y_test, predictions),
-#                         'RMSE': np.sqrt(mean_squared_error(y_test, predictions)),
-#                         'MAPE': np.mean(np.abs((y_test - predictions) / y_test)) * 100,
-#                         'R2': r2_score(y_test, predictions)
-#                     }
-#                     eval_metrics[selected_model] = metrics
-
-#                     # Store data for visualizations
-#                     predictions_data.append({
-#                         'Model': selected_model,
-#                         'Actual': y_test,
-#                         'Predicted': predictions
-#                     })
-                    
-#                     # Store time series data
-#                     time_series_data.append({
-#                         'Model': selected_model,
-#                         'Dates': data_prep.index[split_idx:],
-#                         'Actual': y_test,
-#                         'Predicted': predictions
-#                     })
-
-#                 except Exception as e:
-#                     st.error(f"Error evaluating {selected_model}: {str(e)}")
-#                     continue
-
-#         # Display results
-#         if not eval_metrics:
-#             st.error("No models were successfully evaluated")
-#             return
-
-#         st.subheader(f"📊 Evaluation Results for {coin_name}")
-            
-#         # Metrics table with enhanced styling
-#         with st.expander("Detailed Metrics", expanded=True):
-#             metrics_df = pd.DataFrame.from_dict(eval_metrics, orient='index')
-            
-#             # Apply conditional formatting
-#             def color_metric(val, metric_name):
-#                 if metric_name == 'R2':
-#                     # Green for higher R2 (better)
-#                     color = 'green' if val > 0.7 else 'orange' if val > 0.5 else 'red'
-#                 else:
-#                     # Red for higher error metrics (worse)
-#                     color = 'red' if val > metrics_df[metric_name].mean() else 'green'
-#                 return f'color: {color}; font-weight: bold'
-            
-#             styled_metrics = metrics_df.style.format({
-#                 'MAE': '{:.4f}',
-#                 'MSE': '{:.4f}',
-#                 'RMSE': '{:.4f}',
-#                 'MAPE': '{:.2f}%',
-#                 'R2': '{:.4f}'
-#             }).map(lambda x: 'font-weight: bold', subset=['R2'])
-            
-#             # Apply color to each metric column
-#             for metric in metrics_df.columns:
-#                 styled_metrics = styled_metrics.map(
-#                     lambda x, m=metric: color_metric(x, m), 
-#                     subset=[metric]
-#                 )
-            
-#             st.dataframe(styled_metrics, use_container_width=True)
-            
-#             # Add download button
-#             csv = metrics_df.to_csv().encode('utf-8')
-#             st.download_button(
-#                 label="Download Metrics as CSV",
-#                 data=csv,
-#                 file_name=f'{coin_name}_metrics.csv',
-#                 mime='text/csv',
-#                 key=f"dl_metrics_{coin_index}"
-#             )
-
-#         # Time Series Visualization
-#         st.subheader("⏳ Time Series Performance")
-
-#         fig_ts = go.Figure()
-
-#         # Add actual values (only once)
-#         fig_ts.add_trace(go.Scatter(
-#             x=time_series_data[0]['Dates'],
-#             y=time_series_data[0]['Actual'],
-#             mode='lines',
-#             name='Actual',
-#             line=dict(color='black', width=2),
-#             hovertemplate='Date: %{x}<br>Price: %{y:.4f}'
-#         ))
-
-#         # Add predicted values for each model
-#         for model_data in time_series_data:
-#             fig_ts.add_trace(go.Scatter(
-#                 x=model_data['Dates'],
-#                 y=model_data['Predicted'],
-#                 mode='lines',
-#                 name=f"{model_data['Model']} Predicted",
-#                 line=dict(dash='dash'),
-#                 hovertemplate='Date: %{x}<br>Predicted: %{y:.4f}'
-#             ))
-
-#         fig_ts.update_layout(
-#             title='Actual vs Predicted Over Time',
-#             xaxis_title='Date',
-#             yaxis_title='Price',
-#             hovermode="x unified",
-#             height=500
-#         )
-#         st.plotly_chart(fig_ts, use_container_width=True)
-
-#         # Actual vs Predicted scatter plot
-#         st.subheader("🎯 Prediction Accuracy")
-
-#         for model_data in predictions_data:
-#             st.markdown(f"**{model_data['Model']}**")
-#             col1, col2 = st.columns([3, 1])
-            
-#             with col1:
-#                 fig_scatter = go.Figure()
-                
-#                 fig_scatter.add_trace(go.Scatter(
-#                     x=model_data['Actual'],
-#                     y=model_data['Predicted'],
-#                     mode='markers',
-#                     name=model_data['Model'],
-#                     marker=dict(size=8, opacity=0.7),
-#                     hovertemplate='Actual: %{x:.4f}<br>Predicted: %{y:.4f}'
-#                 ))
-                
-#                 # Add perfect prediction line
-#                 min_val = min(model_data['Actual'])
-#                 max_val = max(model_data['Actual'])
-#                 fig_scatter.add_trace(go.Scatter(
-#                     x=[min_val, max_val],
-#                     y=[min_val, max_val],
-#                     mode='lines',
-#                     name='Perfect Prediction',
-#                     line=dict(color='red', dash='dash'),
-#                     hovertemplate=None
-#                 ))
-                
-#                 fig_scatter.update_layout(
-#                     title=f'Actual vs Predicted Values ({model_data["Model"]})',
-#                     xaxis_title='Actual Price',
-#                     yaxis_title='Predicted Price',
-#                     showlegend=True,
-#                     height=400
-#                 )
-#                 st.plotly_chart(fig_scatter, use_container_width=True)
-            
-#             with col2:
-#                 metrics = eval_metrics[model_data['Model']]
-#                 st.metric("R² Score", f"{metrics['R2']:.4f}")
-#                 st.metric("RMSE", f"{metrics['RMSE']:.4f}")
-#                 st.metric("MAE", f"{metrics['MAE']:.4f}")
-#                 st.download_button(
-#                     f"Download {model_data['Model']} Data",
-#                     pd.DataFrame(model_data).to_csv().encode('utf-8'),
-#                     file_name=f'{coin_name}_{model_data["Model"]}_prediction_data.csv',
-#                     mime='text/csv',
-#                     key=f"dl_pred_data_{coin_index}_{model_data['Model']}"
-#                 )
-#         # Show retrained notice if applicable
-#         if retrained:
-#             st.info("ℹ️ Note: Models were retrained with current environment settings")
-
-#     except Exception as e:
-#         st.error(f"An unexpected error occurred: {str(e)}")
-#         st.error("Please check your data and model files")
-
-# #
-# def plot_actual_forecast_with_confidence(actual, predictions, periods, upper_bound, lower_bound, coin_name, model_name):
-#     """Enhanced visualization of actual vs predicted values with confidence interval"""
-#     fig = go.Figure()
-    
-#     # Main traces
-#     fig.add_trace(go.Scatter(
-#         x=periods, y=actual, 
-#         mode='lines+markers', 
-#         name='Actual', 
-#         line=dict(color='#2ca02c', width=2),
-#         marker=dict(size=6)
-#     ))
-    
-#     fig.add_trace(go.Scatter(
-#         x=periods, y=predictions, 
-#         mode='lines+markers', 
-#         name='Forecast', 
-#         line=dict(color='#d62728', width=2, dash='dot'),
-#         marker=dict(size=6, symbol='diamond')
-#     ))
-    
-#     # Confidence interval
-#     fig.add_trace(go.Scatter(
-#         x=periods, y=upper_bound, 
-#         mode='lines', 
-#         name='Upper Bound (95%)', 
-#         line=dict(color='#1f77b4', width=1, dash='dash'),
-#         opacity=0.3
-#     ))
-    
-#     fig.add_trace(go.Scatter(
-#         x=periods, y=lower_bound, 
-#         mode='lines', 
-#         name='Lower Bound (95%)', 
-#         fill='tonexty', 
-#         line=dict(color='#1f77b4', width=1, dash='dash'),
-#         opacity=0.3
-#     ))
-    
-#     fig.update_layout(
-#         title=f"{coin_name} - Actual vs Forecast ({model_name})",
-#         xaxis_title='Date',
-#         yaxis_title='Price',
-#         hovermode="x unified",
-#         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-#         template="plotly_white",
-#         margin=dict(l=20, r=20, t=60, b=20))
-    
-#     # Add shaded area for confidence interval
-#     fig.update_layout(
-#         annotations=[
-#             dict(
-#                 xref="paper", yref="paper",
-#                 x=0.02, y=0.98,
-#                 text="95% Confidence Interval",
-#                 showarrow=False,
-#                 font=dict(size=10, color="#1f77b4"),
-#                 bgcolor="white",
-#                 opacity=0.8
-#             )
-#         ]
-#     )
-    
-#     st.plotly_chart(fig, use_container_width=True)
 
 def create_forecast_table(predictions, periods, upper_bound, lower_bound):
     """Create a styled DataFrame with forecast results"""
