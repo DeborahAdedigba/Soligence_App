@@ -2303,7 +2303,6 @@ def plot_coin_scatter():
     
 #     st.plotly_chart(fig, use_container_width=True)
 
-
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -2402,7 +2401,7 @@ def analyze_feature_importance(model, model_type, X_train, y_train, feature_name
             return fig
             
         elif model_type == 'LSTM':
-            # Alternative approach for LSTM: Permutation importance instead of SHAP
+            # Alternative approach for LSTM: Custom wrapper for permutation importance
             st.info("Using permutation importance for LSTM (SHAP compatibility issues with current TensorFlow version)")
             
             with st.spinner("Calculating permutation importance for LSTM..."):
@@ -2418,20 +2417,42 @@ def analyze_feature_importance(model, model_type, X_train, y_train, feature_name
                 X_subset = X_train_lstm[indices]
                 y_subset = y_train[indices] if hasattr(y_train, '__getitem__') else y_train.iloc[indices]
                 
-                # Calculate permutation importance
-                result = permutation_importance(
-                    model, X_subset, y_subset,
-                    n_repeats=5, random_state=42
-                )
+                # Create wrapper function for LSTM that handles 3D input
+                class LSTMWrapper:
+                    def __init__(self, model):
+                        self.model = model
+                    
+                    def predict(self, X):
+                        # Ensure X is 3D for LSTM
+                        if len(X.shape) == 2:
+                            X = X.reshape(X.shape[0], X.shape[1], 1)
+                        return self.model.predict(X).flatten()
                 
-            importance = result.importances_mean
-            importance_std = result.importances_std
+                # Calculate custom permutation importance for LSTM
+                lstm_wrapper = LSTMWrapper(model)
+                baseline_score = r2_score(y_subset, lstm_wrapper.predict(X_subset))
+                
+                importance_scores = []
+                for i in range(X_subset.shape[1]):  # For each feature (timestep)
+                    feature_scores = []
+                    for repeat in range(5):  # Number of repeats
+                        # Create a copy and permute the i-th feature
+                        X_permuted = X_subset.copy()
+                        np.random.shuffle(X_permuted[:, i, :])
+                        
+                        # Calculate score with permuted feature
+                        permuted_score = r2_score(y_subset, lstm_wrapper.predict(X_permuted))
+                        feature_scores.append(baseline_score - permuted_score)
+                    
+                    importance_scores.append(np.mean(feature_scores))
+                
+            importance = np.array(importance_scores)
             
             fig, ax = plt.subplots(figsize=(10, 6))
-            bars = ax.barh(feature_names, importance, xerr=importance_std, 
-                          color='plum', edgecolor='purple', capsize=5)
+            bars = ax.barh(feature_names, importance, 
+                          color='plum', edgecolor='purple')
             ax.set_title('LSTM Permutation Importance', fontsize=14, fontweight='bold')
-            ax.set_xlabel('Mean Decrease in Score', fontsize=12)
+            ax.set_xlabel('Mean Decrease in R² Score', fontsize=12)
             ax.set_ylabel('Features', fontsize=12)
             
             # Add value labels on bars
