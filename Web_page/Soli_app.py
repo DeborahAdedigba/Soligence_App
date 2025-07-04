@@ -1959,6 +1959,10 @@ def analyze_feature_importance(model, model_type, X_train, feature_names):
                 ax.set_title('LSTM Permutation Importance (Fallback)')
                 plt.tight_layout()
                 return fig
+                
+    except Exception as e:
+        st.error(f"Feature importance analysis failed: {str(e)}")
+        return None
 
 def evaluate_models_selected_coin(data, coin_index):
     """
