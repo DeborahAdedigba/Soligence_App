@@ -1913,27 +1913,52 @@ def analyze_feature_importance(model, model_type, X_train, feature_names):
             return fig
             
         elif model_type == 'LSTM':
-            # SHAP values for LSTM
-            with st.spinner("Calculating SHAP values (this may take a few minutes)..."):
-                background = X_train[:100].reshape(100, -1, 1)
-                explainer = shap.DeepExplainer(model, background)
-                shap_values = explainer.shap_values(background)
+            try:
+                with st.spinner("Calculating SHAP values (this may take a few minutes)..."):
+                    # Create a small background dataset
+                    background = X_train[:100].reshape(100, -1, 1)
+                    
+                    # Try different SHAP explainers
+                    try:
+                        explainer = shap.DeepExplainer(model, background)
+                    except:
+                        # Fallback to GradientExplainer if DeepExplainer fails
+                        explainer = shap.GradientExplainer(model, background)
+                        
+                    shap_values = explainer.shap_values(background)
+                    
+                    fig, ax = plt.subplots(figsize=(8, 4))
+                    shap.summary_plot(
+                        shap_values[0].reshape(-1, len(feature_names)),
+                        background.reshape(-1, len(feature_names)),
+                        feature_names=feature_names,
+                        plot_type='bar',
+                        show=False
+                    )
+                    plt.title('LSTM Feature Importance (SHAP Values)')
+                    plt.tight_layout()
+                    return fig
+                    
+            except Exception as e:
+                st.warning(f"Couldn't compute SHAP values: {str(e)}")
+                st.info("Showing alternative permutation importance instead")
+                
+                # Fallback to permutation importance
+                from sklearn.inspection import permutation_importance
+                X_train_flat = X_train.reshape(X_train.shape[0], -1)
+                r = permutation_importance(
+                    model, 
+                    X_train_flat[:100], 
+                    y_train[:100],
+                    n_repeats=5,
+                    random_state=42
+                )
                 
                 fig, ax = plt.subplots(figsize=(8, 4))
-                shap.summary_plot(
-                    shap_values[0].reshape(-1, len(feature_names)),
-                    background.reshape(-1, len(feature_names)),
-                    feature_names=feature_names,
-                    plot_type='bar',
-                    show=False
-                )
-                plt.title('LSTM Feature Importance (SHAP Values)')
+                ax.barh(feature_names, r.importances_mean)
+                ax.set_title('LSTM Permutation Importance (Fallback)')
                 plt.tight_layout()
                 return fig
-                
-    except Exception as e:
-        st.error(f"Feature importance analysis failed: {str(e)}")
-        return None
 
 def evaluate_models_selected_coin(data, coin_index):
     """
