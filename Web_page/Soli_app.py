@@ -2698,6 +2698,8 @@ def create_prediction_interface(selected_data):
             with st.spinner("Analyzing market data..."):
                 future_price, future_date, metrics = forecast_price_with_model(chosen_coin, num_days, model_type, selected_data)
                 
+                st.write("DEBUG - Metrics content:", metrics)
+
                 if future_price is not None:
                     current_price = selected_data[chosen_coin].iloc[-1]
                     price_change = future_price - current_price
