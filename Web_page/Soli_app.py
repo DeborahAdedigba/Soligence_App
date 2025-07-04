@@ -1935,7 +1935,7 @@ def analyze_feature_importance(model, model_type, X_train, feature_names):
         st.error(f"Feature importance analysis failed: {str(e)}")
         return None
 
-def evaluate_models_selected_coin(data, coin_index, debug=False):
+def evaluate_models_selected_coin(data, coin_index):
     """
     Evaluate machine learning models for a specific cryptocurrency with single selection,
     enhanced visualizations, and feature importance analysis.
@@ -2232,11 +2232,11 @@ def evaluate_models_selected_coin(data, coin_index, debug=False):
         # Show retrained notice if applicable
         if retrained:
             st.info("ℹ️ Note: Models were retrained with current environment settings")
-        if debug:
-            st.write("DEBUG: Available models:", list(models.keys()))
-            st.write("DEBUG: Selected models:", selected_models)
-            st.write("DEBUG: Features:", features)
-            st.write("DEBUG: X_train shape:", X_train.shape)
+        # if debug:
+        #     st.write("DEBUG: Available models:", list(models.keys()))
+        #     st.write("DEBUG: Selected models:", selected_models)
+        #     st.write("DEBUG: Features:", features)
+        #     st.write("DEBUG: X_train shape:", X_train.shape)
 
     except Exception as e:
         st.error(f"An unexpected error occurred: {str(e)}")
@@ -3664,7 +3664,7 @@ def main():
             
             for coin in coins:
                 coin_index = selected_data.columns.get_loc(coin)
-                evaluate_models_selected_coin(selected_data, coin_index, debug=True)
+                evaluate_models_selected_coin(selected_data, coin_index)
         elif prediction_option == "Prediction Graphs":
             st.header("Cryptocurrency Price Prediction")
             
