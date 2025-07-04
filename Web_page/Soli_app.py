@@ -2575,8 +2575,23 @@ def plot_ma_strategy(selected_data, chosen_coin):
         logging.error(f"Error in plot_ma_strategy: {str(e)}", exc_info=True)
 
 def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
-    """Forecast using machine learning models and evaluate performance"""
+    """
+    Forecast future price and evaluate model performance using backtesting
+    
+    Args:
+        chosen_coin (str): Cryptocurrency symbol (e.g., 'BTC-GBP')
+        num_days (int): Number of days to predict ahead
+        model_type (str): Model type ('SVR', 'GBR', 'XGBoost', 'LSTM')
+        selected_data (pd.DataFrame): Historical price data
+    
+    Returns:
+        tuple: (future_price, future_date, metrics_dict)
+                - future_price: Predicted price
+                - future_date: Prediction date 
+                - metrics_dict: Dictionary of performance metrics or None
+    """
     try:
+        # 1. Validate inputs
         if chosen_coin not in selected_data.columns:
             st.error(f"Selected coin '{chosen_coin}' not found in data")
             return None, None, None
@@ -2601,7 +2616,7 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
             st.error(f"Model not found: {model_filename}")
             return None, None, None
         
-        # Prepare features with lagged values
+        # 2. Prepare features with lagged values
         features = [f'{chosen_coin}_lag_{lag}' for lag in range(1, 4)]
         data_copy = selected_data.copy()
         
@@ -2616,10 +2631,10 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
             st.error("Not enough historical data to generate forecast")
             return None, None, None
         
+        # 3. Make prediction for current date
         X_array = selected_data_clean[features].to_numpy()
         current_price = selected_data_clean[chosen_coin].iloc[-1]
         
-        # Make prediction
         if model_type == "LSTM":
             model = load_model(model_filename)
             X_today = X_array[-1].reshape(1, len(features), 1)
@@ -2631,34 +2646,45 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
         
         future_date = datetime.now() + timedelta(days=num_days)
         
-        # Backtesting evaluation - only if we have enough historical data
+        # 4. Backtesting evaluation
         metrics = None
-        if len(selected_data_clean) > num_days:
+        min_backtest_points = 30  # Minimum required historical predictions
+        
+        if len(selected_data_clean) >= num_days + min_backtest_points:
             try:
-                # Get actual future prices for evaluation
-                actual_future_prices = selected_data_clean[chosen_coin].shift(-num_days).dropna()
-                actual_returns = (actual_future_prices > selected_data_clean[chosen_coin]).astype(int)[:-num_days]
+                # Prepare backtesting data
+                X_backtest = X_array[:-num_days]
+                current_prices = selected_data_clean[chosen_coin].iloc[:-num_days].values
+                actual_future_prices = selected_data_clean[chosen_coin].shift(-num_days).dropna().values
                 
-                # Generate predictions for the evaluation period
-                X_eval = X_array[:-num_days]
+                # Make historical predictions
                 if model_type == "LSTM":
-                    X_eval = X_eval.reshape(X_eval.shape[0], len(features), 1)
-                    pred_prices = model.predict(X_eval).flatten()
+                    X_backtest = X_backtest.reshape(X_backtest.shape[0], len(features), 1)
+                    pred_prices = model.predict(X_backtest).flatten()
                 else:
-                    pred_prices = model.predict(X_eval)
+                    pred_prices = model.predict(X_backtest)
                 
-                # Create signals (1 = buy, 0 = sell)
-                predicted_signals = (pred_prices > selected_data_clean[chosen_coin].iloc[:-num_days].values).astype(int)
+                # Generate signals (1 = buy, 0 = sell)
+                predicted_signals = (pred_prices > current_prices).astype(int)
+                actual_signals = (actual_future_prices > current_prices).astype(int)
                 
                 # Calculate metrics
-                metrics = evaluate_signal_performance(actual_returns, predicted_signals)
+                metrics = {
+                    'Accuracy': accuracy_score(actual_signals, predicted_signals),
+                    'Precision': precision_score(actual_signals, predicted_signals, zero_division=0),
+                    'Recall': recall_score(actual_signals, predicted_signals, zero_division=0),
+                    'F1-Score': f1_score(actual_signals, predicted_signals, zero_division=0)
+                }
                 
-                # For current prediction
-                current_signal = 1 if future_price > current_price else 0
+                # Only calculate AUC if both classes exist
+                if len(np.unique(actual_signals)) > 1:
+                    metrics['AUC-ROC'] = roc_auc_score(actual_signals, pred_prices)
                 
             except Exception as e:
                 logging.warning(f"Metric calculation failed: {str(e)}")
                 metrics = None
+        else:
+            st.warning(f"Insufficient data for backtesting. Need {num_days + min_backtest_points} points, have {len(selected_data_clean)}")
         
         return future_price, future_date, metrics
     
