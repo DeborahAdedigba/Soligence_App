@@ -2543,386 +2543,66 @@ def plot_ma_strategy(selected_data, chosen_coin):
         logging.error(f"Error in plot_ma_strategy: {str(e)}", exc_info=True)
 
 
-# from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
-
-# def evaluate_signal_performance(actual_returns, predicted_signals):
-#     """
-#     Evaluate the performance of buy/sell signals using classification metrics.
-    
-#     Args:
-#         actual_returns (pd.Series): Actual future price returns (1 for positive, 0 for negative).
-#         predicted_signals (pd.Series): Predicted signals (1 for buy, -1 for sell, 0 for hold).
-    
-#     Returns:
-#         dict: Classification metrics (accuracy, precision, recall, F1, AUC-ROC).
-#     """
-#     # Convert signals into binary predictions (1 for buy, 0 for sell)
-#     binary_predictions = (predicted_signals == 1).astype(int)
-    
-#     # Ensure actual_returns is binary (1 if price went up, 0 if down)
-#     actual_binary = (actual_returns > 0).astype(int)
-    
-#     # Calculate metrics
-#     accuracy = accuracy_score(actual_binary, binary_predictions)
-#     precision = precision_score(actual_binary, binary_predictions, zero_division=0)
-#     recall = recall_score(actual_binary, binary_predictions, zero_division=0)
-#     f1 = f1_score(actual_binary, binary_predictions, zero_division=0)
-#     auc_roc = roc_auc_score(actual_binary, binary_predictions) if len(set(actual_binary)) > 1 else None
-    
-#     return {
-#         'Accuracy': accuracy,
-#         'Precision': precision,
-#         'Recall': recall,
-#         'F1-Score': f1,
-#         'AUC-ROC': auc_roc
-#     }
-
-# def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
-#     """
-#     Forecast future price and evaluate model performance using backtesting
-    
-#     Args:
-#         chosen_coin (str): Cryptocurrency symbol (e.g., 'BTC-GBP')
-#         num_days (int): Number of days to predict ahead
-#         model_type (str): Model type ('SVR', 'GBR', 'XGBoost', 'LSTM')
-#         selected_data (pd.DataFrame): Historical price data
-    
-#     Returns:
-#         tuple: (future_price, future_date, metrics_dict)
-#                 - future_price: Predicted price
-#                 - future_date: Prediction date 
-#                 - metrics_dict: Dictionary of performance metrics or None
-#     """
-#     try:
-#         # 1. Validate inputs
-#         if chosen_coin not in selected_data.columns:
-#             st.error(f"Selected coin '{chosen_coin}' not found in data")
-#             return None, None, None
-            
-#         coin_index = selected_data.columns.get_loc(chosen_coin)
-#         model_dir = f"trained_models/Model_SELECTED_COIN_{coin_index+1}"
-        
-#         model_mapping = {
-#             "SVR": "svr_model.pkl",
-#             "GBR": "gradient_boosting_model.pkl",
-#             "XGBoost": "xgboost_model.pkl",
-#             "LSTM": "lstm_model.keras"
-#         }
-        
-#         if model_type not in model_mapping:
-#             st.error(f"Invalid model type: {model_type}")
-#             return None, None, None
-            
-#         model_filename = os.path.join(model_dir, model_mapping[model_type])
-        
-#         if not os.path.exists(model_filename):
-#             st.error(f"Model not found: {model_filename}")
-#             return None, None, None
-        
-#         # 2. Prepare features with lagged values
-#         features = [f'{chosen_coin}_lag_{lag}' for lag in range(1, 4)]
-#         data_copy = selected_data.copy()
-        
-#         for lag in range(1, 4):
-#             lag_col = f'{chosen_coin}_lag_{lag}'
-#             if lag_col not in data_copy.columns:
-#                 data_copy[lag_col] = data_copy[chosen_coin].shift(lag)
-        
-#         selected_data_clean = data_copy.dropna(subset=features)
-        
-#         if len(selected_data_clean) == 0:
-#             st.error("Not enough historical data to generate forecast")
-#             return None, None, None
-        
-#         # 3. Make prediction for current date
-#         X_array = selected_data_clean[features].to_numpy()
-#         current_price = selected_data_clean[chosen_coin].iloc[-1]
-        
-#         if model_type == "LSTM":
-#             model = load_model(model_filename)
-#             X_today = X_array[-1].reshape(1, len(features), 1)
-#             future_price = model.predict(X_today)[0][0]
-#         else:
-#             model = joblib.load(model_filename)
-#             X_today = X_array[-1].reshape(1, -1)
-#             future_price = model.predict(X_today)[0]
-        
-#         future_date = datetime.now() + timedelta(days=num_days)
-        
-#         # 4. Backtesting evaluation
-#         metrics = None
-#         min_backtest_points = 30  # Minimum required historical predictions
-        
-#         if len(selected_data_clean) >= num_days + min_backtest_points:
-#             try:
-#                 # Prepare backtesting data
-#                 X_backtest = X_array[:-num_days]
-#                 current_prices = selected_data_clean[chosen_coin].iloc[:-num_days].values
-#                 actual_future_prices = selected_data_clean[chosen_coin].shift(-num_days).dropna().values
-                
-#                 # Make historical predictions
-#                 if model_type == "LSTM":
-#                     X_backtest = X_backtest.reshape(X_backtest.shape[0], len(features), 1)
-#                     pred_prices = model.predict(X_backtest).flatten()
-#                 else:
-#                     pred_prices = model.predict(X_backtest)
-                
-#                 # Generate signals (1 = buy, 0 = sell)
-#                 predicted_signals = (pred_prices > current_prices).astype(int)
-#                 actual_signals = (actual_future_prices > current_prices).astype(int)
-                
-#                 # Calculate metrics
-#                 metrics = {
-#                     'Accuracy': accuracy_score(actual_signals, predicted_signals),
-#                     'Precision': precision_score(actual_signals, predicted_signals, zero_division=0),
-#                     'Recall': recall_score(actual_signals, predicted_signals, zero_division=0),
-#                     'F1-Score': f1_score(actual_signals, predicted_signals, zero_division=0)
-#                 }
-                
-#                 # Only calculate AUC if both classes exist
-#                 if len(np.unique(actual_signals)) > 1:
-#                     metrics['AUC-ROC'] = roc_auc_score(actual_signals, pred_prices)
-                
-#             except Exception as e:
-#                 logging.warning(f"Metric calculation failed: {str(e)}")
-#                 metrics = None
-#         else:
-#             st.warning(f"Insufficient data for backtesting. Need {num_days + min_backtest_points} points, have {len(selected_data_clean)}")
-        
-#         return future_price, future_date, metrics
-    
-#     except Exception as e:
-#         st.error(f"Error in price forecasting: {str(e)}")
-#         logging.error(f"Error in forecast_price_with_model: {str(e)}", exc_info=True)
-#         return None, None, None
-
-# def create_prediction_interface(selected_data):
-#     """Create unified prediction interface"""
-#     st.markdown("## Prediction with Models")
-    
-#     with st.form(key="prediction_form"):
-#         col1, col2, col3 = st.columns(3)
-        
-#         with col1:
-#             available_coins = selected_data.columns[:4].tolist() if not selected_data.empty else []
-#             chosen_coin = st.selectbox("Select Cryptocurrency", options=available_coins)
-        
-#         with col2:
-#             model_type = st.selectbox(
-#                 "Select Model Type",
-#                 options=["SVR", "GBR", "XGBoost", "LSTM"]
-#             )
-        
-#         with col3:
-#             num_days = st.slider(
-#                 "Prediction Days Ahead",
-#                 min_value=1,
-#                 max_value=30,
-#                 value=7
-#             )
-        
-#         predict_button = st.form_submit_button("Predict Price")
-        
-#         if predict_button:
-#             with st.spinner("Analyzing market data..."):
-#                 future_price, future_date, metrics = forecast_price_with_model(chosen_coin, num_days, model_type, selected_data)
-                
-#                 st.write("DEBUG - Metrics content:", metrics)
-
-#                 if future_price is not None:
-#                     current_price = selected_data[chosen_coin].iloc[-1]
-#                     price_change = future_price - current_price
-#                     percentage_change = (price_change / current_price) * 100
-#                     action = "Buy" if future_price > current_price else "Sell"
-#                     confidence = "Strong" if abs(percentage_change) > 5 else "Moderate" if abs(percentage_change) > 2 else "Weak"
-                    
-#                     st.markdown("""
-#                     <style>
-#                     .result-box {
-#                         padding: 20px;
-#                         border-radius: 10px;
-#                         margin-bottom: 20px;
-#                         background-color: #f0f2f6;
-#                         border-left: 5px solid #4e8cff;
-#                     }
-#                     .metric-label {
-#                         font-size: 14px;
-#                         color: #555;
-#                         font-weight: bold;
-#                     }
-#                     .metric-value {
-#                         font-size: 24px;
-#                         font-weight: bold;
-#                         margin-bottom: 5px;
-#                     }
-#                     .price-up {
-#                         color: #10b981;
-#                     }
-#                     .price-down {
-#                         color: #ef4444;
-#                     }
-#                     .metrics-box {
-#                         background-color: #f8f9fa;
-#                         border-radius: 8px;
-#                         padding: 15px;
-#                         margin-top: 15px;
-#                         border-left: 5px solid #6c757d;
-#                     }
-#                     .metrics-title {
-#                         font-size: 16px;
-#                         font-weight: bold;
-#                         margin-bottom: 10px;
-#                         color: #495057;
-#                     }
-#                     .metric-row {
-#                         display: flex;
-#                         justify-content: space-between;
-#                         margin-bottom: 8px;
-#                     }
-#                     .metric-name {
-#                         font-weight: 600;
-#                         color: #6c757d;
-#                     }
-#                     .metric-value-small {
-#                         font-weight: bold;
-#                         color: #212529;
-#                     }
-#                     </style>
-#                     """, unsafe_allow_html=True)
-                    
-#                     result_html = f"""
-#                     <div class="result-box">
-#                         <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
-#                             <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
-#                                 <div class="metric-label">Current Price</div>
-#                                 <div class="metric-value">${current_price:.4f}</div>
-#                             </div>
-#                             <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
-#                                 <div class="metric-label">Predicted Price</div>
-#                                 <div class="metric-value {'price-up' if price_change > 0 else 'price-down'}">${future_price:.4f}</div>
-#                                 <div>{'▲' if price_change > 0 else '▼'} {abs(percentage_change):.2f}%</div>
-#                             </div>
-#                             <div style="min-width: 150px; margin-bottom: 15px;">
-#                                 <div class="metric-label">Forecast Date</div>
-#                                 <div class="metric-value">{future_date.strftime('%Y-%m-%d')}</div>
-#                                 <div>({num_days} days ahead)</div>
-#                             </div>
-#                         </div>
-#                         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
-#                             <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">
-#                                 Recommendation: <span style="color: {'#10b981' if action == 'Buy' else '#ef4444'}">{action}</span> with {confidence} confidence
-#                             </div>
-#                             <div style="font-style: italic; color: #666;">
-#                                 Based on {model_type} model analysis of {chosen_coin}
-#                             </div>
-#                         </div>
-#                     </div>
-#                     """
-                    
-#                     st.markdown(result_html, unsafe_allow_html=True)
-                    
-#                     # Add metrics box if available
-#                     if metrics:
-#                         metrics_html = """
-#                         <div class="metrics-box">
-#                             <div class="metrics-title">📊 Model Performance Metrics</div>
-#                             <div class="metric-row">
-#                                 <span class="metric-name">Accuracy:</span>
-#                                 <span class="metric-value-small">{accuracy:.1%}</span>
-#                             </div>
-#                             <div class="metric-row">
-#                                 <span class="metric-name">Precision:</span>
-#                                 <span class="metric-value-small">{precision:.1%}</span>
-#                             </div>
-#                             <div class="metric-row">
-#                                 <span class="metric-name">Recall:</span>
-#                                 <span class="metric-value-small">{recall:.1%}</span>
-#                             </div>
-#                             <div class="metric-row">
-#                                 <span class="metric-name">F1-Score:</span>
-#                                 <span class="metric-value-small">{f1:.1%}</span>
-#                             </div>
-#                         </div>
-#                         """.format(
-#                             accuracy=metrics.get('Accuracy', 0),
-#                             precision=metrics.get('Precision', 0),
-#                             recall=metrics.get('Recall', 0),
-#                             f1=metrics.get('F1', 0))
-                        
-#                         st.markdown(metrics_html, unsafe_allow_html=True)
-                    
-#                     st.caption("Note: This forecast is an estimate and market conditions can change unexpectedly.")
-#                 else:
-#                     st.error("Unable to forecast price.")
-
-import os
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import streamlit as st
-from datetime import datetime, timedelta
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+import os
+import logging
 from keras.models import load_model
 import joblib
-import logging
 
-def evaluate_signal_performance(actual_signals, predicted_signals):
+def evaluate_signal_performance(actual_returns, predicted_signals):
     """
-    Evaluate performance of trading signals using classification metrics
+    Evaluate the performance of buy/sell signals using classification metrics.
     
     Args:
-        actual_signals (array): Array of actual price movements (1=up, 0=down)
-        predicted_signals (array): Array of predicted signals (1=buy, 0=sell)
+        actual_returns (array): Actual price movements (1=up, 0=down)
+        predicted_signals (array): Predicted signals (1=buy, 0=sell)
     
     Returns:
-        dict: Dictionary of performance metrics
+        dict: Classification metrics
     """
     try:
+        # Convert to binary classification problem
+        actual_binary = (actual_returns > 0).astype(int)
+        pred_binary = (predicted_signals == 1).astype(int)
+        
         metrics = {
-            'Accuracy': accuracy_score(actual_signals, predicted_signals),
-            'Precision': precision_score(actual_signals, predicted_signals, zero_division=0),
-            'Recall': recall_score(actual_signals, predicted_signals, zero_division=0),
-            'F1-Score': f1_score(actual_signals, predicted_signals, zero_division=0)
+            'Accuracy': accuracy_score(actual_binary, pred_binary),
+            'Precision': precision_score(actual_binary, pred_binary, zero_division=0),
+            'Recall': recall_score(actual_binary, pred_binary, zero_division=0),
+            'F1-Score': f1_score(actual_binary, pred_binary, zero_division=0)
         }
         
-        if len(np.unique(actual_signals)) > 1:
-            metrics['AUC-ROC'] = roc_auc_score(actual_signals, predicted_signals)
-        
+        if len(np.unique(actual_binary)) > 1:
+            metrics['AUC-ROC'] = roc_auc_score(actual_binary, pred_binary)
+            
         return metrics
     except Exception as e:
-        logging.error(f"Error calculating metrics: {str(e)}")
+        logging.error(f"Error in metric calculation: {str(e)}")
         return None
 
 def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
     """
-    Forecast future price and evaluate model performance
+    Forecast future price with performance metrics
     
     Args:
         chosen_coin (str): Cryptocurrency symbol
         num_days (int): Prediction horizon in days
-        model_type (str): Model type ('SVR', 'GBR', 'XGBoost', 'LSTM')
-        selected_data (pd.DataFrame): Historical price data
+        model_type (str): Model type
+        selected_data (DataFrame): Historical price data
     
     Returns:
         tuple: (predicted_price, prediction_date, metrics_dict)
     """
     try:
-        # 1. Validate inputs and load model
+        # 1. Validate inputs
         if chosen_coin not in selected_data.columns:
-            st.error(f"Coin '{chosen_coin}' not found in data")
+            st.error(f"Coin '{chosen_coin}' not found")
             return None, None, None
             
-        model_path = f"trained_models/Model_SELECTED_COIN_{selected_data.columns.get_loc(chosen_coin)+1}"
-        model_file = {
-            "SVR": "svr_model.pkl",
-            "GBR": "gradient_boosting_model.pkl", 
-            "XGBoost": "xgboost_model.pkl",
-            "LSTM": "lstm_model.keras"
-        }.get(model_type)
-        
-        if not model_file or not os.path.exists(f"{model_path}/{model_file}"):
-            st.error(f"Model {model_type} not found")
-            return None, None, None
-        
         # 2. Prepare features
         features = [f'{chosen_coin}_lag_{lag}' for lag in [1,2,3]]
         data = selected_data.copy()
@@ -2931,90 +2611,344 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
                 data[f'{chosen_coin}_lag_{lag}'] = data[chosen_coin].shift(lag)
         
         data = data.dropna(subset=features)
-        if len(data) < num_days + 30:  # Minimum 30 points for backtesting
-            return (data[chosen_coin].iloc[-1], 
-                   datetime.now() + timedelta(days=num_days), 
-                   None)
+        if len(data) < num_days + 30:  # Need min 30 points for backtesting
+            return None, None, None
         
-        # 3. Make predictions
+        # 3. Load model
+        model_dir = f"trained_models/Model_SELECTED_COIN_{selected_data.columns.get_loc(chosen_coin)+1}"
+        model_file = {
+            "SVR": "svr_model.pkl",
+            "GBR": "gradient_boosting_model.pkl",
+            "XGBoost": "xgboost_model.pkl",
+            "LSTM": "lstm_model.keras"
+        }.get(model_type)
+        
+        if not model_file or not os.path.exists(f"{model_dir}/{model_file}"):
+            st.error(f"Model {model_type} not found")
+            return None, None, None
+            
+        if model_type == "LSTM":
+            model = load_model(f"{model_dir}/{model_file}")
+        else:
+            model = joblib.load(f"{model_dir}/{model_file}")
+        
+        # 4. Make prediction
         X = data[features].values
         current_price = data[chosen_coin].iloc[-1]
         
         if model_type == "LSTM":
-            model = load_model(f"{model_path}/{model_file}")
             future_price = model.predict(X[-1].reshape(1, 3, 1))[0][0]
         else:
-            model = joblib.load(f"{model_path}/{model_file}")
             future_price = model.predict(X[-1].reshape(1, -1))[0]
         
-        # 4. Backtesting
+        # 5. Backtesting
         X_test = X[:-num_days]
-        y_true = (data[chosen_coin].shift(-num_days) > data[chosen_coin]).astype(int).dropna()
+        y_true = (data[chosen_coin].shift(-num_days) > data[chosen_coin]).astype(int).dropna().values
         
         if model_type == "LSTM":
-            preds = model.predict(X_test.reshape(X_test.shape[0], 3, 1)).flatten()
+            y_pred = (model.predict(X_test.reshape(X_test.shape[0], 3, 1)).flatten() > data[chosen_coin].iloc[:-num_days].values).astype(int)
         else:
-            preds = model.predict(X_test)
-            
-        y_pred = (preds > data[chosen_coin].iloc[:-num_days].values).astype(int)
+            y_pred = (model.predict(X_test) > data[chosen_coin].iloc[:-num_days].values).astype(int)
         
-        # Ensure equal length
+        # Align lengths
         min_len = min(len(y_true), len(y_pred))
         metrics = evaluate_signal_performance(y_true[:min_len], y_pred[:min_len])
         
         return future_price, datetime.now() + timedelta(days=num_days), metrics
         
     except Exception as e:
-        st.error(f"Prediction failed: {str(e)}")
-        logging.error(f"Forecast error: {str(e)}")
+        st.error(f"Prediction error: {str(e)}")
+        logging.error(f"Forecast failed: {str(e)}")
         return None, None, None
 
 def create_prediction_interface(selected_data):
-    """Main prediction interface"""
-    st.title("Cryptocurrency Price Prediction")
+    """Main prediction interface with original styling"""
+    st.markdown("## Prediction with Models")
     
-    with st.form("prediction_form"):
+    with st.form(key="prediction_form"):
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            coin = st.selectbox("Coin", selected_data.columns)
+            coin = st.selectbox("Select Cryptocurrency", selected_data.columns)
         with col2:
-            model = st.selectbox("Model", ["SVR", "GBR", "XGBoost", "LSTM"])
+            model = st.selectbox("Select Model", ["SVR", "GBR", "XGBoost", "LSTM"])
         with col3:
             days = st.slider("Days Ahead", 1, 30, 7)
         
-        if st.form_submit_button("Predict"):
-            with st.spinner("Calculating..."):
+        if st.form_submit_button("Predict Price"):
+            with st.spinner("Analyzing market data..."):
                 price, date, metrics = forecast_price_with_model(coin, days, model, selected_data)
                 
-                if price:
-                    # Display prediction
-                    change = (price - selected_data[coin].iloc[-1]) / selected_data[coin].iloc[-1] * 100
+                if price is not None:
+                    current_price = selected_data[coin].iloc[-1]
+                    change = (price - current_price) / current_price * 100
                     action = "Buy" if change > 0 else "Sell"
                     confidence = "Strong" if abs(change) > 5 else "Moderate" if abs(change) > 2 else "Weak"
                     
-                    st.success(f"""
-                    **Prediction for {coin}**
-                    - Current: ${selected_data[coin].iloc[-1]:.2f}
-                    - Future ({date.strftime('%Y-%m-%d')}): ${price:.2f} ({change:.1f}%)
-                    - Action: **{action}** ({confidence} confidence)
-                    """)
+                    # Original styling
+                    st.markdown("""
+                    <style>
+                    .result-box {
+                        padding: 20px;
+                        border-radius: 10px;
+                        margin-bottom: 20px;
+                        background-color: #f0f2f6;
+                        border-left: 5px solid #4e8cff;
+                    }
+                    .metric-label {
+                        font-size: 14px;
+                        color: #555;
+                        font-weight: bold;
+                    }
+                    .metric-value {
+                        font-size: 24px;
+                        font-weight: bold;
+                        margin-bottom: 5px;
+                    }
+                    .price-up {
+                        color: #10b981;
+                    }
+                    .price-down {
+                        color: #ef4444;
+                    }
+                    .metrics-box {
+                        background-color: #f8f9fa;
+                        border-radius: 8px;
+                        padding: 15px;
+                        margin-top: 15px;
+                        border-left: 5px solid #6c757d;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
                     
-                    # Display metrics if available
+                    # Prediction result
+                    result_html = f"""
+                    <div class="result-box">
+                        <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                            <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                                <div class="metric-label">Current Price</div>
+                                <div class="metric-value">${current_price:.4f}</div>
+                            </div>
+                            <div style="min-width: 150px; margin-right: 10px; margin-bottom: 15px;">
+                                <div class="metric-label">Predicted Price</div>
+                                <div class="metric-value {'price-up' if change > 0 else 'price-down'}">${price:.4f}</div>
+                                <div>{'▲' if change > 0 else '▼'} {abs(change):.2f}%</div>
+                            </div>
+                            <div style="min-width: 150px; margin-bottom: 15px;">
+                                <div class="metric-label">Forecast Date</div>
+                                <div class="metric-value">{date.strftime('%Y-%m-%d')}</div>
+                                <div>({days} days ahead)</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                            <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">
+                                Recommendation: <span style="color: {'#10b981' if action == 'Buy' else '#ef4444'}">{action}</span> with {confidence} confidence
+                            </div>
+                            <div style="font-style: italic; color: #666;">
+                                Based on {model} model analysis of {coin}
+                            </div>
+                        </div>
+                    </div>
+                    """
+                    st.markdown(result_html, unsafe_allow_html=True)
+                    
+                    # Metrics display
                     if metrics:
-                        st.subheader("Model Performance")
-                        cols = st.columns(4)
-                        cols[0].metric("Accuracy", f"{metrics['Accuracy']:.1%}")
-                        cols[1].metric("Precision", f"{metrics['Precision']:.1%}") 
-                        cols[2].metric("Recall", f"{metrics['Recall']:.1%}")
-                        cols[3].metric("F1-Score", f"{metrics['F1-Score']:.1%}")
-                        
-                        if 'AUC-ROC' in metrics:
-                            st.metric("AUC-ROC", f"{metrics['AUC-ROC']:.3f}")
+                        metrics_html = f"""
+                        <div class="metrics-box">
+                            <div style="font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #495057;">
+                                📊 Model Performance Metrics
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-weight: 600; color: #6c757d;">Accuracy:</span>
+                                <span style="font-weight: bold; color: #212529;">{metrics['Accuracy']:.1%}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-weight: 600; color: #6c757d;">Precision:</span>
+                                <span style="font-weight: bold; color: #212529;">{metrics['Precision']:.1%}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-weight: 600; color: #6c757d;">Recall:</span>
+                                <span style="font-weight: bold; color: #212529;">{metrics['Recall']:.1%}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-weight: 600; color: #6c757d;">F1-Score:</span>
+                                <span style="font-weight: bold; color: #212529;">{metrics['F1-Score']:.1%}</span>
+                            </div>
+                            {f'''<div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-weight: 600; color: #6c757d;">AUC-ROC:</span>
+                                <span style="font-weight: bold; color: #212529;">{metrics['AUC-ROC']:.3f}</span>
+                            </div>''' if 'AUC-ROC' in metrics else ''}
+                        </div>
+                        """
+                        st.markdown(metrics_html, unsafe_allow_html=True)
                     else:
-                        st.warning("Insufficient data for performance metrics")
+                        st.warning("Performance metrics unavailable (insufficient historical data for backtesting)")
+                    
+                    st.caption("Note: This forecast is an estimate and market conditions can change unexpectedly.")
                 else:
-                    st.error("Prediction failed")
+                    st.error("Unable to generate forecast. Please try different parameters.")
+
+# import os
+# import numpy as np
+# import pandas as pd
+# import streamlit as st
+# from datetime import datetime, timedelta
+# from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+# from keras.models import load_model
+# import joblib
+# import logging
+
+# def evaluate_signal_performance(actual_signals, predicted_signals):
+#     """
+#     Evaluate performance of trading signals using classification metrics
+    
+#     Args:
+#         actual_signals (array): Array of actual price movements (1=up, 0=down)
+#         predicted_signals (array): Array of predicted signals (1=buy, 0=sell)
+    
+#     Returns:
+#         dict: Dictionary of performance metrics
+#     """
+#     try:
+#         metrics = {
+#             'Accuracy': accuracy_score(actual_signals, predicted_signals),
+#             'Precision': precision_score(actual_signals, predicted_signals, zero_division=0),
+#             'Recall': recall_score(actual_signals, predicted_signals, zero_division=0),
+#             'F1-Score': f1_score(actual_signals, predicted_signals, zero_division=0)
+#         }
+        
+#         if len(np.unique(actual_signals)) > 1:
+#             metrics['AUC-ROC'] = roc_auc_score(actual_signals, predicted_signals)
+        
+#         return metrics
+#     except Exception as e:
+#         logging.error(f"Error calculating metrics: {str(e)}")
+#         return None
+
+# def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
+#     """
+#     Forecast future price and evaluate model performance
+    
+#     Args:
+#         chosen_coin (str): Cryptocurrency symbol
+#         num_days (int): Prediction horizon in days
+#         model_type (str): Model type ('SVR', 'GBR', 'XGBoost', 'LSTM')
+#         selected_data (pd.DataFrame): Historical price data
+    
+#     Returns:
+#         tuple: (predicted_price, prediction_date, metrics_dict)
+#     """
+#     try:
+#         # 1. Validate inputs and load model
+#         if chosen_coin not in selected_data.columns:
+#             st.error(f"Coin '{chosen_coin}' not found in data")
+#             return None, None, None
+            
+#         model_path = f"trained_models/Model_SELECTED_COIN_{selected_data.columns.get_loc(chosen_coin)+1}"
+#         model_file = {
+#             "SVR": "svr_model.pkl",
+#             "GBR": "gradient_boosting_model.pkl", 
+#             "XGBoost": "xgboost_model.pkl",
+#             "LSTM": "lstm_model.keras"
+#         }.get(model_type)
+        
+#         if not model_file or not os.path.exists(f"{model_path}/{model_file}"):
+#             st.error(f"Model {model_type} not found")
+#             return None, None, None
+        
+#         # 2. Prepare features
+#         features = [f'{chosen_coin}_lag_{lag}' for lag in [1,2,3]]
+#         data = selected_data.copy()
+#         for lag in [1,2,3]:
+#             if f'{chosen_coin}_lag_{lag}' not in data.columns:
+#                 data[f'{chosen_coin}_lag_{lag}'] = data[chosen_coin].shift(lag)
+        
+#         data = data.dropna(subset=features)
+#         if len(data) < num_days + 30:  # Minimum 30 points for backtesting
+#             return (data[chosen_coin].iloc[-1], 
+#                    datetime.now() + timedelta(days=num_days), 
+#                    None)
+        
+#         # 3. Make predictions
+#         X = data[features].values
+#         current_price = data[chosen_coin].iloc[-1]
+        
+#         if model_type == "LSTM":
+#             model = load_model(f"{model_path}/{model_file}")
+#             future_price = model.predict(X[-1].reshape(1, 3, 1))[0][0]
+#         else:
+#             model = joblib.load(f"{model_path}/{model_file}")
+#             future_price = model.predict(X[-1].reshape(1, -1))[0]
+        
+#         # 4. Backtesting
+#         X_test = X[:-num_days]
+#         y_true = (data[chosen_coin].shift(-num_days) > data[chosen_coin]).astype(int).dropna()
+        
+#         if model_type == "LSTM":
+#             preds = model.predict(X_test.reshape(X_test.shape[0], 3, 1)).flatten()
+#         else:
+#             preds = model.predict(X_test)
+            
+#         y_pred = (preds > data[chosen_coin].iloc[:-num_days].values).astype(int)
+        
+#         # Ensure equal length
+#         min_len = min(len(y_true), len(y_pred))
+#         metrics = evaluate_signal_performance(y_true[:min_len], y_pred[:min_len])
+        
+#         return future_price, datetime.now() + timedelta(days=num_days), metrics
+        
+#     except Exception as e:
+#         st.error(f"Prediction failed: {str(e)}")
+#         logging.error(f"Forecast error: {str(e)}")
+#         return None, None, None
+
+# def create_prediction_interface(selected_data):
+#     """Main prediction interface"""
+#     st.title("Cryptocurrency Price Prediction")
+    
+#     with st.form("prediction_form"):
+#         col1, col2, col3 = st.columns(3)
+        
+#         with col1:
+#             coin = st.selectbox("Coin", selected_data.columns)
+#         with col2:
+#             model = st.selectbox("Model", ["SVR", "GBR", "XGBoost", "LSTM"])
+#         with col3:
+#             days = st.slider("Days Ahead", 1, 30, 7)
+        
+#         if st.form_submit_button("Predict"):
+#             with st.spinner("Calculating..."):
+#                 price, date, metrics = forecast_price_with_model(coin, days, model, selected_data)
+                
+#                 if price:
+#                     # Display prediction
+#                     change = (price - selected_data[coin].iloc[-1]) / selected_data[coin].iloc[-1] * 100
+#                     action = "Buy" if change > 0 else "Sell"
+#                     confidence = "Strong" if abs(change) > 5 else "Moderate" if abs(change) > 2 else "Weak"
+                    
+#                     st.success(f"""
+#                     **Prediction for {coin}**
+#                     - Current: ${selected_data[coin].iloc[-1]:.2f}
+#                     - Future ({date.strftime('%Y-%m-%d')}): ${price:.2f} ({change:.1f}%)
+#                     - Action: **{action}** ({confidence} confidence)
+#                     """)
+                    
+#                     # Display metrics if available
+#                     if metrics:
+#                         st.subheader("Model Performance")
+#                         cols = st.columns(4)
+#                         cols[0].metric("Accuracy", f"{metrics['Accuracy']:.1%}")
+#                         cols[1].metric("Precision", f"{metrics['Precision']:.1%}") 
+#                         cols[2].metric("Recall", f"{metrics['Recall']:.1%}")
+#                         cols[3].metric("F1-Score", f"{metrics['F1-Score']:.1%}")
+                        
+#                         if 'AUC-ROC' in metrics:
+#                             st.metric("AUC-ROC", f"{metrics['AUC-ROC']:.3f}")
+#                     else:
+#                         st.warning("Insufficient data for performance metrics")
+#                 else:
+#                     st.error("Prediction failed")
 
 
             
