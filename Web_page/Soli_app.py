@@ -2619,46 +2619,46 @@ def forecast_price_with_model(chosen_coin, num_days, model_type, selected_data):
         X_array = selected_data_clean[features].to_numpy()
         current_price = selected_data_clean[chosen_coin].iloc[-1]
         
-        with st.spinner(f"Predicting future price with {model_type} model..."):
-            if model_type == "LSTM":
-                try:
-                    model = load_model(model_filename)
-                    X_today = X_array[-1].reshape(1, len(features), 1)
-                    future_price = model.predict(X_today)[0][0]
-                except Exception as e:
-                    st.error(f"Error with LSTM prediction: {str(e)}")
-                    return None, None, None
-            else:
-                try:
-                    model = joblib.load(model_filename)
-                    X_today = X_array[-1].reshape(1, -1)
-                    future_price = model.predict(X_today)[0]
-                except Exception as e:
-                    st.error(f"Error with {model_type} prediction: {str(e)}")
-                    return None, None, None
+        # Make prediction
+        if model_type == "LSTM":
+            model = load_model(model_filename)
+            X_today = X_array[-1].reshape(1, len(features), 1)
+            future_price = model.predict(X_today)[0][0]
+        else:
+            model = joblib.load(model_filename)
+            X_today = X_array[-1].reshape(1, -1)
+            future_price = model.predict(X_today)[0]
         
         future_date = datetime.now() + timedelta(days=num_days)
         
-        # Backtesting evaluation (only if we have enough historical data)
+        # Backtesting evaluation - only if we have enough historical data
         metrics = None
         if len(selected_data_clean) > num_days:
             try:
-                # Get actual future price for evaluation
-                actual_future_price = selected_data_clean[chosen_coin].shift(-num_days).iloc[-1]
+                # Get actual future prices for evaluation
+                actual_future_prices = selected_data_clean[chosen_coin].shift(-num_days).dropna()
+                actual_returns = (actual_future_prices > selected_data_clean[chosen_coin]).astype(int)[:-num_days]
                 
-                # Generate signals (1 = buy, 0 = sell)
-                predicted_signal = 1 if future_price > current_price else 0
-                actual_signal = 1 if actual_future_price > current_price else 0
+                # Generate predictions for the evaluation period
+                X_eval = X_array[:-num_days]
+                if model_type == "LSTM":
+                    X_eval = X_eval.reshape(X_eval.shape[0], len(features), 1)
+                    pred_prices = model.predict(X_eval).flatten()
+                else:
+                    pred_prices = model.predict(X_eval)
+                
+                # Create signals (1 = buy, 0 = sell)
+                predicted_signals = (pred_prices > selected_data_clean[chosen_coin].iloc[:-num_days].values).astype(int)
                 
                 # Calculate metrics
-                metrics = {
-                    'Accuracy': accuracy_score([actual_signal], [predicted_signal]),
-                    'Precision': precision_score([actual_signal], [predicted_signal], zero_division=0),
-                    'Recall': recall_score([actual_signal], [predicted_signal], zero_division=0),
-                    'F1': f1_score([actual_signal], [predicted_signal], zero_division=0)
-                }
+                metrics = evaluate_signal_performance(actual_returns, predicted_signals)
+                
+                # For current prediction
+                current_signal = 1 if future_price > current_price else 0
+                
             except Exception as e:
-                logging.warning(f"Could not calculate metrics: {str(e)}")
+                logging.warning(f"Metric calculation failed: {str(e)}")
+                metrics = None
         
         return future_price, future_date, metrics
     
