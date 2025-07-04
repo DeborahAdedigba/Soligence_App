@@ -2232,11 +2232,7 @@ def evaluate_models_selected_coin(data, coin_index):
         # Show retrained notice if applicable
         if retrained:
             st.info("ℹ️ Note: Models were retrained with current environment settings")
-        # if debug:
-        #     st.write("DEBUG: Available models:", list(models.keys()))
-        #     st.write("DEBUG: Selected models:", selected_models)
-        #     st.write("DEBUG: Features:", features)
-        #     st.write("DEBUG: X_train shape:", X_train.shape)
+        
 
     except Exception as e:
         st.error(f"An unexpected error occurred: {str(e)}")
